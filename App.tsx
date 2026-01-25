@@ -84,6 +84,11 @@ function ExpenseTracker() {
     }
   }, [darkMode]);
 
+  // Update Document Title based on language
+  useEffect(() => {
+    document.title = t.appTitle;
+  }, [t.appTitle]);
+
   // Safe to assert supabase is not null here because parent checks it
   const client = supabase!;
 
