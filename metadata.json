@@ -1,0 +1,5 @@
+{
+  "name": "Expense Tracker Pro",
+  "description": "A minimalist personal expense tracker with Supabase integration for data and slip image storage.",
+  "requestFramePermissions": []
+}
