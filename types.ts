@@ -73,7 +73,12 @@ export const TRANSLATIONS = {
     filterByCategory: 'Filter by Category',
     viewDaily: 'Daily',
     viewMonthly: 'Monthly',
-    monthlyChartTitle: 'Monthly Summary (Last 6 Months)'
+    monthlyChartTitle: 'Monthly Summary (Last 6 Months)',
+    refresh: 'Refresh Data',
+    exportCSV: 'Export CSV',
+    importCSV: 'Import CSV',
+    importSuccess: 'Successfully imported transactions!',
+    importError: 'Error importing CSV. Please check format.'
   },
   th: {
     appTitle: 'บันทึกรายรับ-รายจ่าย',
@@ -114,6 +119,11 @@ export const TRANSLATIONS = {
     filterByCategory: 'กรองหมวดหมู่',
     viewDaily: 'รายวัน',
     viewMonthly: 'รายเดือน',
-    monthlyChartTitle: 'สรุปผลรายเดือน (6 เดือนล่าสุด)'
+    monthlyChartTitle: 'สรุปผลรายเดือน (6 เดือนล่าสุด)',
+    refresh: 'รีเฟรชข้อมูล',
+    exportCSV: 'ส่งออก CSV',
+    importCSV: 'นำเข้า CSV',
+    importSuccess: 'นำเข้าข้อมูลสำเร็จ!',
+    importError: 'เกิดข้อผิดพลาดในการนำเข้า โปรดตรวจสอบรูปแบบไฟล์'
   }
 };
