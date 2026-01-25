@@ -65,6 +65,7 @@ function ExpenseTracker() {
   const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
   const [category, setCategory] = useState<string>(DEFAULT_CATEGORIES[0]);
   const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [note, setNote] = useState<string>('');
   const [file, setFile] = useState<File | null>(null);
 
   // Derived Stats
@@ -154,6 +155,7 @@ function ExpenseTracker() {
             amount: parseFloat(amount),
             type,
             category: category.trim(),
+            description: note.trim(),
             slip_url: slipUrl,
             created_at: new Date().toISOString(),
           }
@@ -163,6 +165,7 @@ function ExpenseTracker() {
 
       // 3. Reset & Refresh
       setAmount('');
+      setNote('');
       setFile(null);
       // Reset custom category logic for better UX, default back to 'Food' or keep custom? 
       // Let's reset to default to be clean.
@@ -332,6 +335,18 @@ function ExpenseTracker() {
                   )}
                 </div>
 
+                {/* Note */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Note (Optional)</label>
+                  <input
+                    type="text"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="What was this for?"
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                  />
+                </div>
+
                 {/* File Upload */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Slip Image (Optional)</label>
@@ -385,7 +400,7 @@ function ExpenseTracker() {
                   <thead>
                     <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                       <th className="p-4 font-medium">Date</th>
-                      <th className="p-4 font-medium">Category</th>
+                      <th className="p-4 font-medium">Category / Note</th>
                       <th className="p-4 font-medium text-right">Amount</th>
                       <th className="p-4 font-medium text-center">Slip</th>
                     </tr>
@@ -415,10 +430,15 @@ function ExpenseTracker() {
                             </div>
                           </td>
                           <td className="p-4 text-sm text-slate-800">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                              <Tag size={12} />
-                              {t.category}
-                            </span>
+                            <div className="flex flex-col items-start gap-1">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                                <Tag size={12} />
+                                {t.category}
+                              </span>
+                              {t.description && (
+                                <span className="text-xs text-slate-500 pl-1">{t.description}</span>
+                              )}
+                            </div>
                           </td>
                           <td className={`p-4 text-sm font-bold text-right ${
                             t.type === TransactionType.INCOME ? 'text-green-600' : 'text-slate-800'
