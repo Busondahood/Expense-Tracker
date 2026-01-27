@@ -21,14 +21,43 @@ import {
   ChevronDown,
   RefreshCw,
   Download,
-  Upload
+  Upload,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Image,
+  PieChart,
+  Settings as SettingsIcon
 } from 'lucide-react';
+// html2canvas import removed to avoid build errors; loaded via CDN in index.html
 import { supabase } from './supabaseClient';
 import { StatsCard } from './components/StatsCard';
 import { SlipModal } from './components/SlipModal';
 import { ExpenseChart } from './components/ExpenseChart';
 import { MonthlyChart } from './components/MonthlyChart';
-import { Transaction, TransactionType, DEFAULT_CATEGORIES, Stats, Language, TRANSLATIONS } from './types';
+import { CategoryPieChart } from './components/CategoryPieChart';
+import { AdminPanel } from './components/AdminPanel';
+import { Transaction, TransactionType, DEFAULT_CATEGORIES, Stats, Language, TRANSLATIONS, BudgetSettings } from './types';
+
+// Declare html2canvas on window
+declare global {
+  interface Window {
+    html2canvas: any;
+  }
+}
+
+// Helper to load html2canvas dynamically if it's missing
+const loadHtml2Canvas = (): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    if (window.html2canvas) return resolve(window.html2canvas);
+    
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    script.onload = () => resolve(window.html2canvas);
+    script.onerror = () => reject(new Error("Failed to load html2canvas"));
+    document.head.appendChild(script);
+  });
+};
 
 // Component to show when Supabase is not configured
 const ConfigError = ({ t }: { t: typeof TRANSLATIONS['en'] }) => (
@@ -72,6 +101,9 @@ function ExpenseTracker() {
   const [lang, setLang] = useState<Language>('en');
   const t = TRANSLATIONS[lang];
 
+  // View State (Dashboard or Admin)
+  const [currentView, setCurrentView] = useState<'dashboard' | 'admin'>('dashboard');
+
   // Apply Theme Effect
   useEffect(() => {
     const root = window.document.documentElement;
@@ -97,7 +129,35 @@ function ExpenseTracker() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
-  const [chartView, setChartView] = useState<'daily' | 'monthly'>('daily');
+  const [chartView, setChartView] = useState<'daily' | 'monthly' | 'pie'>('daily');
+  
+  // Unified Categories State (Persisted in LocalStorage)
+  const [categories, setCategories] = useState<string[]>(() => {
+    const savedUnified = localStorage.getItem('expenseTrackerCategories');
+    if (savedUnified) {
+      return JSON.parse(savedUnified);
+    }
+    const savedCustom = localStorage.getItem('customCategories');
+    const oldCustomList = savedCustom ? JSON.parse(savedCustom) : [];
+    return Array.from(new Set([...DEFAULT_CATEGORIES, ...oldCustomList]));
+  });
+
+  // Budget Settings State (Persisted in LocalStorage)
+  const [budgetSettings, setBudgetSettings] = useState<BudgetSettings>(() => {
+    const saved = localStorage.getItem('budgetSettings');
+    return saved ? JSON.parse(saved) : { enabled: false, limit: 10000, alertThreshold: 80 };
+  });
+
+  // User Name for Auto-detect (Persisted)
+  const [userName, setUserName] = useState<string>(() => {
+     return localStorage.getItem('expenseTrackerUserName') || 'กิตติภณ สุกัญญา';
+  });
+
+  // Sort State
+  const [sortConfig, setSortConfig] = useState<{ key: keyof Transaction | null; direction: 'asc' | 'desc' }>({
+    key: 'created_at',
+    direction: 'desc',
+  });
   
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -106,16 +166,40 @@ function ExpenseTracker() {
   // Form State
   const [amount, setAmount] = useState<string>('');
   const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
-  const [category, setCategory] = useState<string>(DEFAULT_CATEGORIES[0]);
+  const [category, setCategory] = useState<string>(categories.length > 0 ? categories[0] : '');
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [note, setNote] = useState<string>('');
   const [file, setFile] = useState<File | null>(null);
 
   // Import CSV Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Chart Ref
+  const chartRef = useRef<HTMLDivElement>(null);
 
   // Derived Stats
   const [stats, setStats] = useState<Stats>({ balance: 0, income: 0, expense: 0 });
+
+  // Save Categories Effect (Unified)
+  useEffect(() => {
+    localStorage.setItem('expenseTrackerCategories', JSON.stringify(categories));
+    
+    // Safety check: if current selected category is deleted, reset to first available
+    if (!isCustomCategory && !categories.includes(category) && categories.length > 0) {
+      setCategory(categories[0]);
+    } else if (categories.length === 0 && !isCustomCategory) {
+      setCategory('');
+    }
+  }, [categories, category, isCustomCategory]);
+
+  // Save Budget Settings Effect
+  useEffect(() => {
+    localStorage.setItem('budgetSettings', JSON.stringify(budgetSettings));
+  }, [budgetSettings]);
+
+  // Save User Name Effect
+  useEffect(() => {
+    localStorage.setItem('expenseTrackerUserName', userName);
+  }, [userName]);
 
   // Fetch Transactions
   const fetchTransactions = useCallback(async () => {
@@ -123,8 +207,7 @@ function ExpenseTracker() {
       setLoading(true);
       const { data, error } = await client
         .from('transactions')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*');
 
       if (error) throw error;
 
@@ -134,7 +217,6 @@ function ExpenseTracker() {
       }
     } catch (error) {
       console.error('Error fetching transactions:', error);
-      // In a real app, use a toast here
     } finally {
       setLoading(false);
     }
@@ -161,20 +243,32 @@ function ExpenseTracker() {
     });
   };
 
+  // Triggered by the main file input (Manual attach)
+  const handleManualFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files ? e.target.files[0] : null;
+    setFile(selectedFile);
+  };
+
   // Handle Form Submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount) return;
-    if (!category.trim()) {
+    
+    const finalCategory = category.trim();
+
+    if (!finalCategory) {
       alert("Please enter a category");
       return;
+    }
+
+    if (isCustomCategory && !categories.includes(finalCategory)) {
+      setCategories(prev => [finalCategory, ...prev]); 
     }
 
     try {
       setSubmitting(true);
       let slipUrl = null;
 
-      // 1. Upload Image if exists
       if (file) {
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -193,14 +287,13 @@ function ExpenseTracker() {
         slipUrl = publicUrl;
       }
 
-      // 2. Insert Record
       const { error: insertError } = await client
         .from('transactions')
         .insert([
           {
             amount: parseFloat(amount),
             type,
-            category: category.trim(),
+            category: finalCategory,
             description: note.trim(),
             slip_url: slipUrl,
             created_at: new Date().toISOString(),
@@ -209,14 +302,15 @@ function ExpenseTracker() {
 
       if (insertError) throw insertError;
 
-      // 3. Reset & Refresh
       setAmount('');
       setNote('');
       setFile(null);
-      setCategory(DEFAULT_CATEGORIES[0]); 
+      if (categories.length > 0) {
+        setCategory(categories[0]);
+      }
       setIsCustomCategory(false);
 
-      // Reset file input value manually
+      // Reset file inputs
       const fileInput = document.getElementById('slip-upload') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
       
@@ -230,13 +324,11 @@ function ExpenseTracker() {
     }
   };
 
-  // Handle Delete
+  // Handle Delete Single
   const handleDelete = async (id: string) => {
     if (!window.confirm(t.confirmDelete)) return;
 
     try {
-      // In a production app, we should also delete the image from storage if it exists.
-      // For this minimal version, we just delete the record.
       const { error } = await client
         .from('transactions')
         .delete()
@@ -250,32 +342,42 @@ function ExpenseTracker() {
     }
   };
 
+  // Handle Clear ALL Data
+  const handleClearAll = async () => {
+    if (!window.confirm(t.confirmClearAll)) return;
+    
+    if (!window.confirm("CONFIRMATION: Delete all data permanently?")) return;
+
+    try {
+      setLoading(true);
+      const { error } = await client
+        .from('transactions')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); 
+
+      if (error) throw error;
+      
+      await fetchTransactions();
+      alert("All data cleared.");
+    } catch (error) {
+      console.error('Error clearing data:', error);
+      alert('Failed to clear data.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // CSV Export
   const handleExportCSV = () => {
-    // Header row
     const headers = ['Date', 'Type', 'Category', 'Amount', 'Note'];
-    
-    // Data rows
     const rows = transactions.map(t => {
       const date = new Date(t.created_at).toISOString();
-      // Escape double quotes in description and wrap in quotes
       const note = t.description ? `"${t.description.replace(/"/g, '""')}"` : '';
-      return [
-        date,
-        t.type,
-        t.category,
-        t.amount,
-        note
-      ].join(',');
+      return [date, t.type, t.category, t.amount, note].join(',');
     });
 
-    // Combine headers and rows
     const csvContent = [headers.join(','), ...rows].join('\n');
-    
-    // Add Byte Order Mark (BOM) for UTF-8 so Excel opens it correctly with Thai characters
     const BOM = '\uFEFF';
-    
-    // Create Blob and download link
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -305,38 +407,23 @@ function ExpenseTracker() {
       try {
         const text = event.target?.result as string;
         const lines = text.split('\n');
-        
-        // Skip header row and filter empty lines
         const dataRows = lines.slice(1).filter(line => line.trim() !== '');
         
         const newTransactions = [];
         
         for (const line of dataRows) {
-          // Simple CSV parse handling comma separation
-          // NOTE: This basic split doesn't handle commas inside quotes perfectly.
-          // For a robust app, use a library like 'papaparse'.
-          // Here we assume standard format generated by our export or simple CSV.
-          // Trying to handle quoted strings with regex
           const matches = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
           
           if (matches && matches.length >= 4) {
-             // Basic fallback if regex fails or matches is weird, we do standard split for simplicity in this demo
-             // But let's try to map columns based on our export format:
-             // Date, Type, Category, Amount, Note
-             
              const cols = line.split(',');
-             
-             // Basic validation
              if (cols.length < 4) continue;
              
              const type = cols[1].toLowerCase().includes('income') ? TransactionType.INCOME : TransactionType.EXPENSE;
              const amount = parseFloat(cols[3]);
-             
              if (isNaN(amount)) continue;
 
-             // Handle potential quotes in Note (last column)
-             let note = cols.slice(4).join(','); // Rejoin remaining commas in note
-             note = note.replace(/^"|"$/g, '').replace(/""/g, '"'); // Remove surrounding quotes
+             let note = cols.slice(4).join(',');
+             note = note.replace(/^"|"$/g, '').replace(/""/g, '"');
 
              newTransactions.push({
                created_at: new Date(cols[0]).toISOString(),
@@ -344,7 +431,7 @@ function ExpenseTracker() {
                category: cols[2],
                amount: amount,
                description: note,
-               slip_url: null // We cannot import slip images via CSV easily
+               slip_url: null 
              });
           }
         }
@@ -355,7 +442,6 @@ function ExpenseTracker() {
             .insert(newTransactions);
             
           if (error) throw error;
-          
           alert(`${t.importSuccess} (${newTransactions.length} items)`);
           await fetchTransactions();
         } else {
@@ -367,11 +453,39 @@ function ExpenseTracker() {
         alert(t.importError);
       } finally {
         setLoading(false);
-        if (fileInputRef.current) fileInputRef.current.value = ''; // Reset input
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
     };
 
     reader.readAsText(file);
+  };
+
+  // Handle Chart Download
+  const handleDownloadChart = async () => {
+    if (chartRef.current) {
+      try {
+        // Dynamically load library if missing
+        if (!window.html2canvas) {
+          await loadHtml2Canvas();
+        }
+
+        const canvas = await window.html2canvas(chartRef.current, {
+          backgroundColor: darkMode ? '#1e293b' : '#ffffff', // Slate-800 or White
+          scale: 2 // Higher resolution
+        });
+        
+        const link = document.createElement('a');
+        link.download = `expense_chart_${chartView}_${new Date().toISOString().split('T')[0]}.png`;
+        link.href = canvas.toDataURL();
+        link.click();
+      } catch (error) {
+        console.error("Chart export failed", error);
+        const errMsg = lang === 'th' 
+          ? "ไม่สามารถโหลดระบบสร้างรูปภาพได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต" 
+          : "Failed to load image generation library. Please check your internet connection.";
+        alert(errMsg);
+      }
+    }
   };
 
   const handleViewSlip = (url: string) => {
@@ -394,11 +508,45 @@ function ExpenseTracker() {
     setLang(prev => prev === 'en' ? 'th' : 'en');
   };
 
+  // Sorting Handler
+  const requestSort = (key: keyof Transaction) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
   // Filter Logic
   const filteredTransactions = useMemo(() => {
-    if (filterCategory === 'ALL') return transactions;
-    return transactions.filter(t => t.category === filterCategory);
-  }, [transactions, filterCategory]);
+    let data = [...transactions];
+    
+    // Filter
+    if (filterCategory !== 'ALL') {
+      data = data.filter(t => t.category === filterCategory);
+    }
+
+    // Sort
+    if (sortConfig.key) {
+      data.sort((a, b) => {
+        const aValue = a[sortConfig.key!];
+        const bValue = b[sortConfig.key!];
+
+        if (aValue === null || aValue === undefined) return 1;
+        if (bValue === null || bValue === undefined) return -1;
+
+        if (aValue < bValue) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+
+    return data;
+  }, [transactions, filterCategory, sortConfig]);
 
   const filteredTotal = useMemo(() => {
     if (filterCategory === 'ALL') return 0;
@@ -410,10 +558,45 @@ function ExpenseTracker() {
   const availableFilterCategories = useMemo(() => {
     const cats = new Set<string>();
     transactions.forEach(t => cats.add(t.category));
-    DEFAULT_CATEGORIES.forEach(c => cats.add(c));
+    categories.forEach(c => cats.add(c));
     return Array.from(cats).sort();
-  }, [transactions]);
+  }, [transactions, categories]);
 
+  // Helper for Sort Icon
+  const SortIcon = ({ columnKey }: { columnKey: keyof Transaction }) => {
+    if (sortConfig.key !== columnKey) return <ArrowUpDown size={14} className="opacity-30 ml-1" />;
+    return sortConfig.direction === 'asc' 
+      ? <ArrowUp size={14} className="text-blue-500 ml-1" /> 
+      : <ArrowDown size={14} className="text-blue-500 ml-1" />;
+  };
+
+  // Title Helper
+  const getChartTitle = () => {
+    if (chartView === 'daily') return t.chartTitle;
+    if (chartView === 'monthly') return t.monthlyChartTitle;
+    return t.pieChartTitle;
+  }
+
+  // Render Admin View
+  if (currentView === 'admin') {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 font-sans transition-colors duration-300">
+         <AdminPanel 
+            lang={lang}
+            onBack={() => setCurrentView('dashboard')}
+            categories={categories}
+            setCategories={setCategories}
+            onClearData={handleClearAll}
+            budgetSettings={budgetSettings}
+            setBudgetSettings={setBudgetSettings}
+            userName={userName}
+            setUserName={setUserName}
+         />
+      </div>
+    );
+  }
+
+  // Render Dashboard
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 font-sans transition-colors duration-300">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -431,6 +614,16 @@ function ExpenseTracker() {
           </div>
           
           <div className="flex gap-2 self-end md:self-auto">
+            {/* Settings/Admin Button */}
+            <button
+              onClick={() => setCurrentView('admin')}
+              className="p-2.5 rounded-full bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center justify-center relative"
+              title={t.adminSettings}
+            >
+              <SettingsIcon size={18} />
+              {!userName && <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-800"></span>}
+            </button>
+
             {/* Refresh Button */}
             <button
               onClick={fetchTransactions}
@@ -486,60 +679,103 @@ function ExpenseTracker() {
 
         {/* Graph Section - Order 3 Mobile, Order 3 Desktop */}
         {transactions.length > 0 && (
-           <div className="lg:col-span-3 order-3 lg:order-3 bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-4">
+           <div ref={chartRef} className="lg:col-span-3 order-3 lg:order-3 bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
                 {/* Title */}
                 <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 self-start sm:self-auto">
-                   {chartView === 'daily' ? t.chartTitle : t.monthlyChartTitle}
+                   {getChartTitle()}
                 </h3>
                 
                 {/* Controls & Legend Container */}
-                <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 self-end sm:self-auto w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-4 self-end sm:self-auto w-full sm:w-auto">
                   
+                  {/* Download Chart Button */}
+                  <button 
+                    onClick={handleDownloadChart}
+                    className="p-2 text-slate-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-lg transition-colors flex items-center gap-2 text-xs font-medium border border-slate-200 dark:border-slate-600"
+                    title={t.downloadChart}
+                  >
+                    <Image size={16} />
+                    <span className="hidden sm:inline">{t.downloadChart}</span>
+                  </button>
+
                   {/* Toggle Switch */}
                   <div className="bg-slate-100 dark:bg-slate-700 rounded-lg p-1 border border-slate-200 dark:border-slate-600 flex w-full sm:w-auto">
                     <button
                       onClick={() => setChartView('daily')}
-                      className={`flex-1 sm:flex-none px-4 py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
+                      className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
                         chartView === 'daily' 
                           ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-300 shadow-sm' 
                           : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                       }`}
+                      title={t.viewDaily}
                     >
                       <BarChart3 size={14} />
-                      {t.viewDaily}
+                      <span className="hidden sm:inline">{t.viewDaily}</span>
                     </button>
                     <button
                       onClick={() => setChartView('monthly')}
-                      className={`flex-1 sm:flex-none px-4 py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
+                      className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
                         chartView === 'monthly' 
                           ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-300 shadow-sm' 
                           : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                       }`}
+                      title={t.viewMonthly}
                     >
                       <Calendar size={14} />
-                      {t.viewMonthly}
+                      <span className="hidden sm:inline">{t.viewMonthly}</span>
+                    </button>
+                    <button
+                      onClick={() => setChartView('pie')}
+                      className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
+                        chartView === 'pie' 
+                          ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-300 shadow-sm' 
+                          : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                      }`}
+                      title={t.viewPie}
+                    >
+                      <PieChart size={14} />
+                      <span className="hidden sm:inline">{t.viewPie}</span>
                     </button>
                   </div>
+                </div>
+              </div>
 
-                  {/* Legend */}
-                  <div className="flex gap-4 text-xs font-medium text-slate-600 dark:text-slate-300">
+              {/* Chart Content */}
+              {chartView === 'daily' && (
+                <>
+                  <div className="flex justify-end mb-2 gap-4 text-xs font-medium text-slate-600 dark:text-slate-300">
                     <div className="flex items-center gap-1.5">
                       <span className="w-2.5 h-2.5 rounded-full bg-green-500"></span> 
                       {t.income}
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span> 
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-600"></span> 
                       {t.expense}
                     </div>
                   </div>
-                </div>
-              </div>
+                  <ExpenseChart transactions={transactions} />
+                </>
+              )}
+              
+              {chartView === 'monthly' && (
+                <>
+                  <div className="flex justify-end mb-2 gap-4 text-xs font-medium text-slate-600 dark:text-slate-300">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-green-500"></span> 
+                      {t.income}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-600"></span> 
+                      {t.expense}
+                    </div>
+                  </div>
+                  <MonthlyChart transactions={transactions} lang={lang} />
+                </>
+              )}
 
-              {chartView === 'daily' ? (
-                <ExpenseChart transactions={transactions} />
-              ) : (
-                <MonthlyChart transactions={transactions} lang={lang} />
+              {chartView === 'pie' && (
+                <CategoryPieChart transactions={transactions} />
               )}
            </div>
         )}
@@ -602,19 +838,21 @@ function ExpenseTracker() {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t.category}</label>
                   {!isCustomCategory ? (
-                    <div className="relative">
-                      <select
-                        value={category}
-                        onChange={handleCategorySelect}
-                        className="w-full px-4 py-2 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none appearance-none"
-                      >
-                        {DEFAULT_CATEGORIES.map((cat) => (
-                          <option className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200" key={cat} value={cat}>{cat}</option>
-                        ))}
-                        <option className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200" disabled>──────────</option>
-                        <option className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200" value="CUSTOM_NEW">{t.addNewCategory}</option>
-                      </select>
-                      <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <div className="flex flex-col gap-2">
+                      <div className="relative">
+                        <select
+                          value={category}
+                          onChange={handleCategorySelect}
+                          className="w-full px-4 py-2 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none appearance-none"
+                        >
+                          {categories.map((cat) => (
+                            <option className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200" key={cat} value={cat}>{cat}</option>
+                          ))}
+                          <option className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200" disabled>──────────</option>
+                          <option className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200" value="CUSTOM_NEW">{t.addNewCategory}</option>
+                        </select>
+                        <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      </div>
                     </div>
                   ) : (
                     <div className="flex gap-2">
@@ -630,7 +868,7 @@ function ExpenseTracker() {
                         type="button"
                         onClick={() => {
                           setIsCustomCategory(false);
-                          setCategory(DEFAULT_CATEGORIES[0]);
+                          setCategory(categories.length > 0 ? categories[0] : '');
                         }}
                         className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg"
                         title="Cancel custom category"
@@ -653,7 +891,7 @@ function ExpenseTracker() {
                   />
                 </div>
 
-                {/* File Upload */}
+                {/* Manual File Upload (Fallback) */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t.slipImage}</label>
                   <div className="relative">
@@ -661,16 +899,33 @@ function ExpenseTracker() {
                       id="slip-upload"
                       type="file"
                       accept="image/*"
-                      onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)}
+                      onChange={handleManualFileSelect}
                       className="hidden"
                     />
-                    <label 
-                      htmlFor="slip-upload"
-                      className="flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed border-slate-200 dark:border-slate-600 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-500 transition-all text-sm text-slate-500 dark:text-slate-400"
-                    >
-                      <ImageIcon size={18} />
-                      {file ? file.name : t.clickToUpload}
-                    </label>
+                    {file ? (
+                        <div className="flex items-center justify-between p-3 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-700/50">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                                <FileText size={16} className="text-blue-500 flex-shrink-0" />
+                                <span className="text-sm text-slate-600 dark:text-slate-300 truncate">{file.name}</span>
+                            </div>
+                            <button 
+                                type="button"
+                                onClick={() => setFile(null)}
+                                className="text-slate-400 hover:text-red-500 transition-colors"
+                                title={t.removeFile}
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+                    ) : (
+                        <label 
+                        htmlFor="slip-upload"
+                        className="flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed border-slate-200 dark:border-slate-600 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-500 transition-all text-sm text-slate-500 dark:text-slate-400"
+                        >
+                        <ImageIcon size={18} />
+                        {t.clickToUpload}
+                        </label>
+                    )}
                   </div>
                 </div>
 
@@ -706,6 +961,8 @@ function ExpenseTracker() {
                 
                 {/* Filter and Summary Container */}
                 <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 w-full sm:w-auto">
+                    {/* Note: Clear All Button Moved to Admin Panel */}
+
                     {/* Summary Badge (Shown when filtering) */}
                     {filterCategory !== 'ALL' && (
                         <div className="animate-in fade-in slide-in-from-right-4 duration-300 flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg text-sm font-medium border border-blue-100 dark:border-blue-800/30 shadow-sm whitespace-nowrap">
@@ -765,9 +1022,24 @@ function ExpenseTracker() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
-                      <th className="p-4 font-medium">{t.date}</th>
-                      <th className="p-4 font-medium">{t.categoryNote}</th>
-                      <th className="p-4 font-medium text-right">{t.amount}</th>
+                      <th 
+                        className="p-4 font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors select-none"
+                        onClick={() => requestSort('created_at')}
+                      >
+                        <div className="flex items-center gap-1">{t.date} <SortIcon columnKey="created_at" /></div>
+                      </th>
+                      <th 
+                        className="p-4 font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors select-none"
+                        onClick={() => requestSort('category')}
+                      >
+                         <div className="flex items-center gap-1">{t.categoryNote} <SortIcon columnKey="category" /></div>
+                      </th>
+                      <th 
+                        className="p-4 font-medium text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors select-none"
+                        onClick={() => requestSort('amount')}
+                      >
+                         <div className="flex items-center justify-end gap-1">{t.amount} <SortIcon columnKey="amount" /></div>
+                      </th>
                       <th className="p-4 font-medium text-center">{t.slip}</th>
                       <th className="p-4 font-medium text-center">Action</th>
                     </tr>
@@ -808,7 +1080,7 @@ function ExpenseTracker() {
                             </div>
                           </td>
                           <td className={`p-4 text-sm font-bold text-right ${
-                            t.type === TransactionType.INCOME ? 'text-green-600 dark:text-green-400' : 'text-slate-800 dark:text-slate-200'
+                            t.type === TransactionType.INCOME ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                           }`}>
                             {t.type === TransactionType.INCOME ? '+' : '-'}
                             ฿{t.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
