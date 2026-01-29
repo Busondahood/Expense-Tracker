@@ -1,3 +1,4 @@
+
 export enum TransactionType {
   INCOME = 'income',
   EXPENSE = 'expense',
@@ -35,6 +36,14 @@ export interface BudgetSettings {
   enabled: boolean;
   limit: number;
   alertThreshold: number; // Percentage 0-100
+}
+
+export interface AppSettings {
+  id: number;
+  categories: string[];
+  budget_settings: BudgetSettings;
+  user_name: string;
+  updated_at?: string;
 }
 
 export type Language = 'en' | 'th';
@@ -119,6 +128,7 @@ export const TRANSLATIONS = {
     removeFile: 'Remove file',
     sender: 'Sender',
     receiver: 'Receiver',
+    syncing: 'Syncing settings...',
   },
   th: {
     appTitle: 'บันทึกรายรับ-รายจ่าย',
@@ -199,5 +209,6 @@ export const TRANSLATIONS = {
     removeFile: 'ลบไฟล์',
     sender: 'ผู้โอน',
     receiver: 'ผู้รับเงิน',
+    syncing: 'กำลังซิงค์การตั้งค่า...',
   }
 };

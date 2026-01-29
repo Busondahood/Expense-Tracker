@@ -27,7 +27,8 @@ import {
   ArrowDown,
   Image,
   PieChart,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Cloud
 } from 'lucide-react';
 // html2canvas import removed to avoid build errors; loaded via CDN in index.html
 import { supabase } from './supabaseClient';
@@ -131,27 +132,14 @@ function ExpenseTracker() {
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
   const [chartView, setChartView] = useState<'daily' | 'monthly' | 'pie'>('daily');
   
-  // Unified Categories State (Persisted in LocalStorage)
-  const [categories, setCategories] = useState<string[]>(() => {
-    const savedUnified = localStorage.getItem('expenseTrackerCategories');
-    if (savedUnified) {
-      return JSON.parse(savedUnified);
-    }
-    const savedCustom = localStorage.getItem('customCategories');
-    const oldCustomList = savedCustom ? JSON.parse(savedCustom) : [];
-    return Array.from(new Set([...DEFAULT_CATEGORIES, ...oldCustomList]));
-  });
-
-  // Budget Settings State (Persisted in LocalStorage)
-  const [budgetSettings, setBudgetSettings] = useState<BudgetSettings>(() => {
-    const saved = localStorage.getItem('budgetSettings');
-    return saved ? JSON.parse(saved) : { enabled: false, limit: 10000, alertThreshold: 80 };
-  });
-
-  // User Name for Auto-detect (Persisted)
-  const [userName, setUserName] = useState<string>(() => {
-     return localStorage.getItem('expenseTrackerUserName') || 'กิตติภณ สุกัญญา';
-  });
+  // --- SYNCED STATES (Initialized with defaults, updated from Supabase) ---
+  const [categories, setCategories] = useState<string[]>(Array.from(DEFAULT_CATEGORIES));
+  const [budgetSettings, setBudgetSettings] = useState<BudgetSettings>({ enabled: false, limit: 10000, alertThreshold: 80 });
+  const [userName, setUserName] = useState<string>('กิตติภณ สุกัญญา');
+  
+  // Loading state for settings
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Sort State
   const [sortConfig, setSortConfig] = useState<{ key: keyof Transaction | null; direction: 'asc' | 'desc' }>({
@@ -166,7 +154,7 @@ function ExpenseTracker() {
   // Form State
   const [amount, setAmount] = useState<string>('');
   const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
-  const [category, setCategory] = useState<string>(categories.length > 0 ? categories[0] : '');
+  const [category, setCategory] = useState<string>('');
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [note, setNote] = useState<string>('');
   const [file, setFile] = useState<File | null>(null);
@@ -179,27 +167,98 @@ function ExpenseTracker() {
   // Derived Stats
   const [stats, setStats] = useState<Stats>({ balance: 0, income: 0, expense: 0 });
 
-  // Save Categories Effect (Unified)
+  // --- FETCH SETTINGS FROM SUPABASE (REPLACES LOCALSTORAGE) ---
+  const fetchSettings = useCallback(async () => {
+    try {
+      setSettingsLoading(true);
+      // We use ID=1 for the single global settings row
+      const { data, error } = await client
+        .from('app_settings')
+        .select('*')
+        .eq('id', 1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 is "Row not found"
+        console.error('Error fetching settings:', error);
+      }
+
+      if (data) {
+        // Settings exist, use them
+        if (data.categories) setCategories(data.categories);
+        if (data.budget_settings) setBudgetSettings(data.budget_settings);
+        if (data.user_name) setUserName(data.user_name);
+      } else {
+        // No settings found (first time), create default row
+        const defaultSettings = {
+          id: 1,
+          categories: Array.from(DEFAULT_CATEGORIES),
+          budget_settings: { enabled: false, limit: 10000, alertThreshold: 80 },
+          user_name: 'กิตติภณ สุกัญญา'
+        };
+        
+        await client.from('app_settings').insert(defaultSettings);
+        // Defaults are already set in useState
+      }
+    } catch (err) {
+      console.error("Unexpected error loading settings", err);
+    } finally {
+      setSettingsLoading(false);
+    }
+  }, [client]);
+
+  // Load Settings on Mount
   useEffect(() => {
-    localStorage.setItem('expenseTrackerCategories', JSON.stringify(categories));
-    
-    // Safety check: if current selected category is deleted, reset to first available
-    if (!isCustomCategory && !categories.includes(category) && categories.length > 0) {
-      setCategory(categories[0]);
-    } else if (categories.length === 0 && !isCustomCategory) {
-      setCategory('');
+    fetchSettings();
+  }, [fetchSettings]);
+
+  // --- SAVE SETTINGS TO SUPABASE ---
+  // Debounce saving to avoid too many API calls
+  useEffect(() => {
+    if (settingsLoading) return; // Don't save if initial load hasn't happened
+
+    const saveSettings = async () => {
+      setIsSyncing(true);
+      try {
+        const { error } = await client
+          .from('app_settings')
+          .upsert({
+            id: 1,
+            categories,
+            budget_settings: budgetSettings,
+            user_name: userName,
+            updated_at: new Date().toISOString()
+          });
+        
+        if (error) throw error;
+      } catch (err) {
+        console.error("Error syncing settings:", err);
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+
+    const timeoutId = setTimeout(saveSettings, 1000); // 1 second debounce
+    return () => clearTimeout(timeoutId);
+
+  }, [categories, budgetSettings, userName, settingsLoading, client]);
+
+
+  // 4. Effect to handle Category Selection Logic (UI Only)
+  useEffect(() => {
+    // If we are NOT typing a custom category
+    if (!isCustomCategory) {
+      // If the currently selected 'category' is no longer in the list (e.g. deleted), reset to first available
+      if (!categories.includes(category) && categories.length > 0) {
+        setCategory(categories[0]);
+      } else if (categories.length === 0) {
+        // If list is empty
+        setCategory('');
+      } else if (category === '') {
+          // Initial set
+          setCategory(categories[0]);
+      }
     }
   }, [categories, category, isCustomCategory]);
-
-  // Save Budget Settings Effect
-  useEffect(() => {
-    localStorage.setItem('budgetSettings', JSON.stringify(budgetSettings));
-  }, [budgetSettings]);
-
-  // Save User Name Effect
-  useEffect(() => {
-    localStorage.setItem('expenseTrackerUserName', userName);
-  }, [userName]);
 
   // Fetch Transactions
   const fetchTransactions = useCallback(async () => {
@@ -261,8 +320,10 @@ function ExpenseTracker() {
       return;
     }
 
+    // Add new category if it's custom and not in list
     if (isCustomCategory && !categories.includes(finalCategory)) {
       setCategories(prev => [finalCategory, ...prev]); 
+      // The useEffect will handle saving to Supabase automatically
     }
 
     try {
@@ -609,7 +670,15 @@ function ExpenseTracker() {
             </div>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white mb-1 transition-colors">{t.appTitle}</h1>
-              <p className="text-slate-500 dark:text-slate-400 transition-colors text-sm font-medium">{t.subTitle}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-slate-500 dark:text-slate-400 transition-colors text-sm font-medium">{t.subTitle}</p>
+                {isSyncing && (
+                  <span className="flex items-center gap-1 text-xs text-blue-500 animate-pulse bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full">
+                    <Cloud size={12} />
+                    {lang === 'th' ? 'กำลังซิงค์...' : 'Syncing...'}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           
@@ -626,12 +695,15 @@ function ExpenseTracker() {
 
             {/* Refresh Button */}
             <button
-              onClick={fetchTransactions}
-              disabled={loading}
-              className={`p-2.5 rounded-full bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center justify-center ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+              onClick={() => {
+                fetchTransactions();
+                fetchSettings();
+              }}
+              disabled={loading || settingsLoading}
+              className={`p-2.5 rounded-full bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center justify-center ${loading || settingsLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
               title={t.refresh}
             >
-              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+              <RefreshCw size={18} className={loading || settingsLoading ? 'animate-spin' : ''} />
             </button>
 
             {/* Language Toggle */}
@@ -845,6 +917,7 @@ function ExpenseTracker() {
                           onChange={handleCategorySelect}
                           className="w-full px-4 py-2 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none appearance-none"
                         >
+                          <option className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200" value="" disabled>{t.selectCategory}</option>
                           {categories.map((cat) => (
                             <option className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200" key={cat} value={cat}>{cat}</option>
                           ))}
