@@ -43,6 +43,7 @@ export interface AppSettings {
   categories: string[];
   budget_settings: BudgetSettings;
   user_name: string;
+  glow_enabled?: boolean; // New field
   updated_at?: string;
 }
 
@@ -129,6 +130,8 @@ export const TRANSLATIONS = {
     sender: 'Sender',
     receiver: 'Receiver',
     syncing: 'Syncing settings...',
+    visualEffects: 'Visual Effects',
+    glowEffect: 'Glow Effect',
   },
   th: {
     appTitle: 'บันทึกรายรับ-รายจ่าย',
@@ -210,5 +213,7 @@ export const TRANSLATIONS = {
     sender: 'ผู้โอน',
     receiver: 'ผู้รับเงิน',
     syncing: 'กำลังซิงค์การตั้งค่า...',
+    visualEffects: 'การแสดงผล',
+    glowEffect: 'เอฟเฟกต์แสงฟุ้ง (Glow)',
   }
 };

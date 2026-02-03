@@ -9,28 +9,32 @@ interface StatsCardProps {
 }
 
 export const StatsCard: React.FC<StatsCardProps> = ({ title, amount, icon: Icon, type }) => {
-  let colorClass = 'text-slate-800 dark:text-slate-100';
-  let bgClass = 'bg-white dark:bg-slate-800';
-  let iconBgClass = 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300';
+  let amountClass = 'text-slate-900 dark:text-white';
+  let iconClass = 'text-slate-500 dark:text-slate-400';
+  let bgIconClass = 'bg-slate-100 dark:bg-[#2C2C2E]';
 
   if (type === 'success') {
-    colorClass = 'text-green-600 dark:text-green-400';
-    iconBgClass = 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400';
+    amountClass = 'text-[#34C759]'; // iOS Green
+    iconClass = 'text-[#34C759]';
+    bgIconClass = 'bg-[#34C759]/10';
   } else if (type === 'danger') {
-    colorClass = 'text-red-600 dark:text-red-400';
-    iconBgClass = 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400';
+    amountClass = 'text-[#FF3B30]'; // iOS Red
+    iconClass = 'text-[#FF3B30]';
+    bgIconClass = 'bg-[#FF3B30]/10';
   }
 
   return (
-    <div className={`${bgClass} p-6 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-between transition-colors`}>
-      <div>
-        <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{title}</p>
-        <h3 className={`text-2xl font-bold ${colorClass}`}>
-          ฿{amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-        </h3>
+    <div className="bg-white dark:bg-[#1C1C1E] p-5 rounded-[22px] shadow-sm flex flex-col justify-between h-full transition-all active:scale-95 duration-200 cursor-default">
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-[13px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide opacity-80">{title}</span>
+        <div className={`p-2 rounded-full ${bgIconClass} ${iconClass}`}>
+          <Icon size={18} strokeWidth={2.5} />
+        </div>
       </div>
-      <div className={`p-3 rounded-full ${iconBgClass}`}>
-        <Icon size={24} />
+      <div>
+        <h3 className={`text-2xl font-bold tracking-tight ${amountClass}`}>
+          ฿{amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </h3>
       </div>
     </div>
   );

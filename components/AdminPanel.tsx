@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, ArrowLeft, Trash2, Plus, Settings, ShieldCheck, DollarSign, AlertTriangle, UserCircle } from 'lucide-react';
+import { Lock, ArrowLeft, Trash2, Plus, Settings, ShieldCheck, DollarSign, AlertTriangle, UserCircle, ChevronRight, Zap } from 'lucide-react';
 import { TRANSLATIONS, Language, BudgetSettings } from '../types';
 
 interface AdminPanelProps {
@@ -12,6 +12,8 @@ interface AdminPanelProps {
   setBudgetSettings: React.Dispatch<React.SetStateAction<BudgetSettings>>;
   userName: string;
   setUserName: React.Dispatch<React.SetStateAction<string>>;
+  glowEnabled: boolean;
+  setGlowEnabled: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ 
@@ -23,7 +25,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   budgetSettings,
   setBudgetSettings,
   userName,
-  setUserName
+  setUserName,
+  glowEnabled,
+  setGlowEnabled
 }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pin, setPin] = useState('');
@@ -64,21 +68,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   if (!isAuthenticated) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-4">
-        <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-lg max-w-sm w-full border border-slate-100 dark:border-slate-700 text-center animate-in fade-in zoom-in duration-300">
-            <div className="w-20 h-20 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-500 dark:text-slate-400">
-                <Lock size={36} />
+      <div className="flex flex-col items-center justify-center min-h-[80vh] p-4">
+        <div className="w-full max-w-sm text-center">
+            <div className="w-24 h-24 bg-gray-200 dark:bg-[#1C1C1E] rounded-full flex items-center justify-center mx-auto mb-8 shadow-sm">
+                <Lock size={40} className="text-gray-400" />
             </div>
-            <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">{t.adminLogin}</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{t.enterPin}</p>
+            <h2 className="text-2xl font-bold text-black dark:text-white mb-2">{t.adminLogin}</h2>
+            <p className="text-gray-500 mb-8">{t.enterPin}</p>
             
-            <form onSubmit={handleLogin} className="space-y-4">
-                <div className="relative">
+            <form onSubmit={handleLogin} className="space-y-6">
+                <div className="flex justify-center">
                   <input 
                       type="password" 
                       value={pin}
                       onChange={(e) => setPin(e.target.value)}
-                      className="w-full px-4 py-3 text-center text-3xl tracking-[0.5em] font-bold rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/30 focus:border-blue-500 outline-none transition-all placeholder:tracking-normal placeholder:text-base placeholder:font-normal"
+                      className="w-48 text-center text-4xl tracking-[0.5em] font-bold bg-transparent border-b-2 border-gray-300 dark:border-gray-700 focus:border-[#007AFF] outline-none transition-all pb-2 text-black dark:text-white"
                       placeholder="••••"
                       maxLength={4}
                       autoFocus
@@ -86,12 +90,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
                 <button 
                     type="submit"
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl transition-colors shadow-lg shadow-blue-200 dark:shadow-none"
+                    className="w-full bg-[#007AFF] hover:bg-[#0062c4] active:scale-95 text-white font-semibold py-3.5 rounded-xl transition-all shadow-lg shadow-blue-500/20"
                 >
                     {t.login}
                 </button>
             </form>
-            <button onClick={onBack} className="mt-6 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+            <button onClick={onBack} className="mt-6 text-sm text-[#007AFF] font-medium">
                 {t.back}
             </button>
         </div>
@@ -100,181 +104,173 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   }
 
   return (
-    <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-700 overflow-hidden">
-            {/* Header */}
-            <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-800/50">
-                <div className="flex items-center gap-4">
-                    <button 
-                        onClick={onBack} 
-                        className="p-2 -ml-2 hover:bg-white dark:hover:bg-slate-700 rounded-full transition-colors text-slate-500 dark:text-slate-400 shadow-sm hover:shadow"
-                    >
-                        <ArrowLeft size={24} />
-                    </button>
-                    <div>
-                        <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                            <ShieldCheck className="text-green-500" size={28} />
-                            {t.adminSettings}
-                        </h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">System configuration and management</p>
+    <div className="max-w-2xl mx-auto pt-4 pb-12 animate-in fade-in slide-in-from-bottom-8 duration-500">
+        
+        {/* iOS Navigation Bar Style */}
+        <div className="flex items-center justify-between mb-6 px-2">
+            <button 
+                onClick={onBack} 
+                className="flex items-center gap-1 text-[#007AFF] active:opacity-50 transition-opacity font-medium text-lg"
+            >
+                <ArrowLeft size={22} />
+                {t.back}
+            </button>
+            <h2 className="text-lg font-bold text-black dark:text-white">
+                {t.adminSettings}
+            </h2>
+            <div className="w-10"></div> {/* Spacer for center alignment */}
+        </div>
+
+        <div className="space-y-6">
+            
+            {/* 1. Profile Section */}
+            <div>
+                <h3 className="ml-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">{t.myProfile}</h3>
+                <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl overflow-hidden shadow-sm">
+                    <div className="p-4 flex items-center justify-between">
+                         <div className="flex items-center gap-3">
+                             <div className="bg-purple-500 rounded-full p-1.5 text-white">
+                                <UserCircle size={20} />
+                             </div>
+                             <span className="font-medium">{t.userNameInSlip}</span>
+                         </div>
+                         <input 
+                            type="text"
+                            value={userName}
+                            onChange={(e) => setUserName(e.target.value)}
+                            placeholder="Your Name"
+                            className="text-right bg-transparent text-gray-500 dark:text-gray-400 focus:text-black dark:focus:text-white outline-none"
+                         />
+                    </div>
+                </div>
+                <p className="ml-4 mt-2 text-xs text-gray-400 max-w-md">{t.userNameDesc}</p>
+            </div>
+
+            {/* 1.5 Visual Effects */}
+            <div>
+                <h3 className="ml-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">{t.visualEffects}</h3>
+                <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl overflow-hidden shadow-sm">
+                    <div className="p-4 flex items-center justify-between">
+                         <div className="flex items-center gap-3">
+                             <div className="bg-blue-500 rounded-full p-1.5 text-white">
+                                <Zap size={20} />
+                             </div>
+                             <span className="font-medium">{t.glowEffect}</span>
+                         </div>
+                         <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={glowEnabled} 
+                                onChange={(e) => setGlowEnabled(e.target.checked)} 
+                                className="sr-only peer" 
+                            />
+                            <div className="w-[51px] h-[31px] bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[27px] after:w-[27px] after:transition-all dark:border-gray-600 peer-checked:bg-[#34C759]"></div>
+                        </label>
                     </div>
                 </div>
             </div>
 
-            {/* Content */}
-            <div className="p-6 md:p-8 space-y-8">
-                
-                {/* 1. Profile Settings (New) */}
-                <div className="bg-slate-50 dark:bg-slate-900/30 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                        <div>
-                            <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                <UserCircle size={20} className="text-purple-500" />
-                                {t.myProfile}
-                            </h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t.userNameDesc}</p>
-                        </div>
-                        <div className="w-full sm:w-auto flex-1 max-w-xs">
-                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                {t.userNameInSlip}
-                             </label>
-                             <input 
-                                type="text"
-                                value={userName}
-                                onChange={(e) => setUserName(e.target.value)}
-                                placeholder="e.g. Somchai Jai-dee"
-                                className="w-full px-4 py-2 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
-                             />
-                        </div>
-                    </div>
-                </div>
-
-                {/* 2. Category Management */}
-                <div className="bg-slate-50 dark:bg-slate-900/30 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                            <div>
-                            <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                <Settings size={20} className="text-blue-500" />
-                                {t.manageCategories}
-                            </h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Add, remove or manage all categories</p>
-                            </div>
-                            
-                            <form onSubmit={handleAddCategory} className="flex gap-2 w-full sm:w-auto">
+            {/* 2. Categories */}
+            <div>
+                <h3 className="ml-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">{t.manageCategories}</h3>
+                <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl overflow-hidden shadow-sm">
+                    <div className="p-4 border-b border-gray-100 dark:border-[#2C2C2E]">
+                        <form onSubmit={handleAddCategory} className="flex gap-2">
                             <input 
                                 type="text" 
                                 value={newCat}
                                 onChange={(e) => setNewCat(e.target.value)}
-                                placeholder={lang === 'th' ? 'ชื่อหมวดหมู่ใหม่...' : 'New category name...'}
-                                className="flex-1 min-w-[200px] px-4 py-2 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+                                placeholder={lang === 'th' ? 'เพิ่มหมวดหมู่...' : 'Add Category...'}
+                                className="flex-1 bg-gray-100 dark:bg-black/50 px-4 py-2 rounded-xl text-black dark:text-white outline-none focus:ring-2 focus:ring-[#007AFF]/50 transition-all"
                             />
-                            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 shadow-sm transition-transform active:scale-95">
-                                <Plus size={18} />
-                                <span className="hidden sm:inline">{t.add}</span>
+                            <button type="submit" className="bg-[#007AFF] text-white p-2 rounded-xl active:scale-90 transition-transform">
+                                <Plus size={20} />
                             </button>
                         </form>
                     </div>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                        {categories.map((cat) => (
-                            <div key={cat} className="flex items-center justify-between p-3 pl-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm transition-all hover:border-blue-300 dark:hover:border-blue-700 group">
-                                <span className="font-medium text-slate-700 dark:text-slate-200">
+                    <div className="max-h-60 overflow-y-auto">
+                        {categories.map((cat, index) => (
+                            <div key={cat} className={`flex items-center justify-between p-4 bg-white dark:bg-[#1C1C1E] active:bg-gray-50 dark:active:bg-[#2C2C2E] transition-colors ${index !== categories.length - 1 ? 'border-b border-gray-100 dark:border-[#2C2C2E]' : ''}`}>
+                                <span className="font-medium text-black dark:text-white ml-2">
                                     {cat}
                                 </span>
                                 <button 
                                     onClick={() => handleDelete(cat)}
-                                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors opacity-60 group-hover:opacity-100"
-                                    title="Delete"
+                                    className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-full transition-colors"
                                 >
-                                    <Trash2 size={16} />
+                                    <Trash2 size={18} />
                                 </button>
                             </div>
                         ))}
-                        {categories.length === 0 && (
-                            <div className="col-span-full text-center py-6 text-slate-400 italic">
-                                No categories available. Please add one.
-                            </div>
-                        )}
                     </div>
                 </div>
-
-                {/* 3. Budget Configuration */}
-                <div className="bg-slate-50 dark:bg-slate-900/30 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
-                    <div className="flex items-start justify-between gap-4 mb-6">
-                        <div>
-                            <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                <DollarSign size={20} className="text-amber-500" />
-                                {t.budgetConfig}
-                            </h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Set limits and alerts for your spending</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                             <label className="relative inline-flex items-center cursor-pointer">
-                                <input 
-                                    type="checkbox" 
-                                    checked={budgetSettings.enabled} 
-                                    onChange={(e) => handleBudgetChange('enabled', e.target.checked)} 
-                                    className="sr-only peer" 
-                                />
-                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                                <span className="ml-3 text-sm font-medium text-slate-900 dark:text-slate-300">{t.enableBudget}</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 transition-opacity ${budgetSettings.enabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{t.setBudget} (฿)</label>
-                            <input 
-                                type="number" 
-                                value={budgetSettings.limit}
-                                onChange={(e) => handleBudgetChange('limit', parseFloat(e.target.value))}
-                                className="w-full px-4 py-2 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                                {t.threshold}: <span className="font-bold text-blue-600 dark:text-blue-400">{budgetSettings.alertThreshold}%</span>
-                            </label>
-                            <input 
-                                type="range" 
-                                min="10" 
-                                max="100" 
-                                step="5"
-                                value={budgetSettings.alertThreshold}
-                                onChange={(e) => handleBudgetChange('alertThreshold', parseInt(e.target.value))}
-                                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700 accent-blue-600"
-                            />
-                            <div className="flex justify-between text-xs text-slate-400 mt-1">
-                                <span>10%</span>
-                                <span>50%</span>
-                                <span>100%</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 4. Danger Zone */}
-                <div className="bg-red-50 dark:bg-red-900/10 rounded-xl p-6 border border-red-100 dark:border-red-900/30">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                        <div>
-                            <h3 className="text-lg font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
-                                <AlertTriangle size={20} />
-                                {t.dangerZone}
-                            </h3>
-                            <p className="text-sm text-red-600/70 dark:text-red-400/70 mt-1">{t.resetDesc}</p>
-                        </div>
-                        <button 
-                            onClick={onClearData}
-                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium shadow-sm transition-colors flex items-center gap-2"
-                        >
-                            <Trash2 size={18} />
-                            {t.resetData}
-                        </button>
-                    </div>
-                </div>
-
             </div>
+
+            {/* 3. Budget */}
+            <div>
+                <h3 className="ml-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">{t.budgetConfig}</h3>
+                <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl overflow-hidden shadow-sm">
+                    <div className="p-4 flex items-center justify-between border-b border-gray-100 dark:border-[#2C2C2E]">
+                        <div className="flex items-center gap-3">
+                             <div className="bg-amber-500 rounded-full p-1.5 text-white">
+                                <DollarSign size={20} />
+                             </div>
+                             <span className="font-medium">{t.enableBudget}</span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={budgetSettings.enabled} 
+                                onChange={(e) => handleBudgetChange('enabled', e.target.checked)} 
+                                className="sr-only peer" 
+                            />
+                            <div className="w-[51px] h-[31px] bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[27px] after:w-[27px] after:transition-all dark:border-gray-600 peer-checked:bg-[#34C759]"></div>
+                        </label>
+                    </div>
+
+                    {budgetSettings.enabled && (
+                        <div className="p-4 space-y-4 animate-in slide-in-from-top-2">
+                             <div className="flex justify-between items-center">
+                                <label className="text-sm text-gray-500">{t.setBudget}</label>
+                                <input 
+                                    type="number" 
+                                    value={budgetSettings.limit}
+                                    onChange={(e) => handleBudgetChange('limit', parseFloat(e.target.value))}
+                                    className="text-right font-bold bg-transparent outline-none w-32"
+                                />
+                             </div>
+                             <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <label className="text-sm text-gray-500">{t.threshold}</label>
+                                    <span className="text-[#007AFF] font-bold">{budgetSettings.alertThreshold}%</span>
+                                </div>
+                                <input 
+                                    type="range" 
+                                    min="10" 
+                                    max="100" 
+                                    step="5"
+                                    value={budgetSettings.alertThreshold}
+                                    onChange={(e) => handleBudgetChange('alertThreshold', parseInt(e.target.value))}
+                                    className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-[#007AFF]"
+                                />
+                             </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* 4. Reset */}
+            <div>
+                 <button 
+                    onClick={onClearData}
+                    className="w-full bg-white dark:bg-[#1C1C1E] text-[#FF3B30] font-medium py-4 rounded-2xl shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                    <Trash2 size={18} />
+                    {t.resetData}
+                </button>
+                <p className="text-center mt-2 text-xs text-gray-400">{t.resetDesc}</p>
+            </div>
+
         </div>
     </div>
   );

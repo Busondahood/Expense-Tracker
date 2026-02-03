@@ -28,9 +28,11 @@ import {
   Image,
   PieChart,
   Settings as SettingsIcon,
-  Cloud
+  Cloud,
+  Check,
+  Search,
+  ChevronRight
 } from 'lucide-react';
-// html2canvas import removed to avoid build errors; loaded via CDN in index.html
 import { supabase } from './supabaseClient';
 import { StatsCard } from './components/StatsCard';
 import { SlipModal } from './components/SlipModal';
@@ -40,14 +42,12 @@ import { CategoryPieChart } from './components/CategoryPieChart';
 import { AdminPanel } from './components/AdminPanel';
 import { Transaction, TransactionType, DEFAULT_CATEGORIES, Stats, Language, TRANSLATIONS, BudgetSettings } from './types';
 
-// Declare html2canvas on window
 declare global {
   interface Window {
     html2canvas: any;
   }
 }
 
-// Helper to load html2canvas dynamically if it's missing
 const loadHtml2Canvas = (): Promise<any> => {
   return new Promise((resolve, reject) => {
     if (window.html2canvas) return resolve(window.html2canvas);
@@ -60,37 +60,66 @@ const loadHtml2Canvas = (): Promise<any> => {
   });
 };
 
-// Component to show when Supabase is not configured
+// --- Helper Component for Number Animation ---
+const CountUpAnimation = ({ end, duration = 1500 }: { end: number, duration?: number }) => {
+  const [count, setCount] = useState(0);
+  const countRef = useRef(0); // Use ref to keep track of the animation start point properly
+
+  useEffect(() => {
+    const start = countRef.current;
+    const change = end - start;
+    
+    // If change is tiny, just set it immediately to avoid jitter
+    if (Math.abs(change) < 0.01) {
+      setCount(end);
+      countRef.current = end;
+      return;
+    }
+
+    const startTime = performance.now();
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Easing function: easeOutQuart (starts fast, slows down smoothly)
+      const ease = 1 - Math.pow(1 - progress, 4);
+      
+      const current = start + (change * ease);
+      setCount(current);
+      countRef.current = current;
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        setCount(end); // Ensure we land exactly on the target
+        countRef.current = end;
+      }
+    };
+
+    const animationId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animationId);
+  }, [end, duration]);
+
+  return <>{count.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>;
+};
+
 const ConfigError = ({ t }: { t: typeof TRANSLATIONS['en'] }) => (
-  <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4 font-sans text-slate-800 dark:text-slate-100 transition-colors">
-    <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg max-w-lg w-full text-center border border-slate-100 dark:border-slate-700">
-      <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+  <div className="min-h-screen flex items-center justify-center bg-[#F2F2F7] dark:bg-black p-6 font-sans text-slate-900 dark:text-white">
+    <div className="bg-white dark:bg-[#1C1C1E] p-8 rounded-3xl shadow-xl max-w-sm w-full text-center">
+      <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-[#FF3B30] rounded-full flex items-center justify-center mx-auto mb-6">
         <AlertTriangle size={32} />
       </div>
-      <h2 className="text-2xl font-bold mb-3">{t.connectionRequired}</h2>
-      <p className="text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+      <h2 className="text-xl font-bold mb-3">{t.connectionRequired}</h2>
+      <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm leading-relaxed">
         {t.connectionDesc}
-      </p>
-      
-      <div className="text-left bg-slate-900 rounded-lg p-4 mb-6 overflow-x-auto shadow-inner">
-        <code className="text-xs font-mono text-green-400 block mb-2"># .env</code>
-        <div className="text-xs font-mono text-slate-300 space-y-1">
-          <div><span className="text-purple-400">VITE_SUPABASE_URL</span>=https://your-project.supabase.co</div>
-          <div><span className="text-purple-400">VITE_SUPABASE_ANON_KEY</span>=your-anon-key</div>
-        </div>
-      </div>
-
-      <p className="text-xs text-slate-400">
-        See <code className="bg-slate-100 dark:bg-slate-700 px-1 py-0.5 rounded text-slate-600 dark:text-slate-300">SUPABASE_SETUP.md</code> for setup instructions.
       </p>
     </div>
   </div>
 );
 
 function ExpenseTracker() {
-  // Theme State
   const [darkMode, setDarkMode] = useState<boolean>(() => {
-    // Check local storage or system preference
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') === 'dark' || 
         (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -98,14 +127,10 @@ function ExpenseTracker() {
     return false;
   });
 
-  // Language State
   const [lang, setLang] = useState<Language>('en');
   const t = TRANSLATIONS[lang];
-
-  // View State (Dashboard or Admin)
   const [currentView, setCurrentView] = useState<'dashboard' | 'admin'>('dashboard');
 
-  // Apply Theme Effect
   useEffect(() => {
     const root = window.document.documentElement;
     if (darkMode) {
@@ -117,41 +142,34 @@ function ExpenseTracker() {
     }
   }, [darkMode]);
 
-  // Update Document Title based on language
   useEffect(() => {
     document.title = t.appTitle;
   }, [t.appTitle]);
 
-  // Safe to assert supabase is not null here because parent checks it
   const client = supabase!;
 
-  // State Management
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
   const [chartView, setChartView] = useState<'daily' | 'monthly' | 'pie'>('daily');
   
-  // --- SYNCED STATES (Initialized with defaults, updated from Supabase) ---
   const [categories, setCategories] = useState<string[]>(Array.from(DEFAULT_CATEGORIES));
   const [budgetSettings, setBudgetSettings] = useState<BudgetSettings>({ enabled: false, limit: 10000, alertThreshold: 80 });
   const [userName, setUserName] = useState<string>('กิตติภณ สุกัญญา');
+  const [glowEnabled, setGlowEnabled] = useState<boolean>(false);
   
-  // Loading state for settings
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Sort State
   const [sortConfig, setSortConfig] = useState<{ key: keyof Transaction | null; direction: 'asc' | 'desc' }>({
     key: 'created_at',
     direction: 'desc',
   });
   
-  // Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedSlip, setSelectedSlip] = useState<string | null>(null);
 
-  // Form State
   const [amount, setAmount] = useState<string>('');
   const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
   const [category, setCategory] = useState<string>('');
@@ -159,45 +177,34 @@ function ExpenseTracker() {
   const [note, setNote] = useState<string>('');
   const [file, setFile] = useState<File | null>(null);
 
-  // Import CSV Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Chart Ref
   const chartRef = useRef<HTMLDivElement>(null);
 
-  // Derived Stats
   const [stats, setStats] = useState<Stats>({ balance: 0, income: 0, expense: 0 });
 
-  // --- FETCH SETTINGS FROM SUPABASE (REPLACES LOCALSTORAGE) ---
   const fetchSettings = useCallback(async () => {
     try {
       setSettingsLoading(true);
-      // We use ID=1 for the single global settings row
       const { data, error } = await client
         .from('app_settings')
         .select('*')
         .eq('id', 1)
         .single();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 is "Row not found"
-        console.error('Error fetching settings:', error);
-      }
-
       if (data) {
-        // Settings exist, use them
         if (data.categories) setCategories(data.categories);
         if (data.budget_settings) setBudgetSettings(data.budget_settings);
         if (data.user_name) setUserName(data.user_name);
+        if (data.glow_enabled !== undefined) setGlowEnabled(data.glow_enabled);
       } else {
-        // No settings found (first time), create default row
         const defaultSettings = {
           id: 1,
           categories: Array.from(DEFAULT_CATEGORIES),
           budget_settings: { enabled: false, limit: 10000, alertThreshold: 80 },
-          user_name: 'กิตติภณ สุกัญญา'
+          user_name: 'กิตติภณ สุกัญญา',
+          glow_enabled: false
         };
-        
         await client.from('app_settings').insert(defaultSettings);
-        // Defaults are already set in useState
       }
     } catch (err) {
       console.error("Unexpected error loading settings", err);
@@ -206,70 +213,52 @@ function ExpenseTracker() {
     }
   }, [client]);
 
-  // Load Settings on Mount
   useEffect(() => {
     fetchSettings();
   }, [fetchSettings]);
 
-  // --- SAVE SETTINGS TO SUPABASE ---
-  // Debounce saving to avoid too many API calls
   useEffect(() => {
-    if (settingsLoading) return; // Don't save if initial load hasn't happened
-
+    if (settingsLoading) return;
     const saveSettings = async () => {
       setIsSyncing(true);
       try {
-        const { error } = await client
-          .from('app_settings')
-          .upsert({
+        await client.from('app_settings').upsert({
             id: 1,
             categories,
             budget_settings: budgetSettings,
             user_name: userName,
+            glow_enabled: glowEnabled,
             updated_at: new Date().toISOString()
           });
-        
-        if (error) throw error;
       } catch (err) {
         console.error("Error syncing settings:", err);
       } finally {
         setIsSyncing(false);
       }
     };
-
-    const timeoutId = setTimeout(saveSettings, 1000); // 1 second debounce
+    const timeoutId = setTimeout(saveSettings, 1000);
     return () => clearTimeout(timeoutId);
+  }, [categories, budgetSettings, userName, glowEnabled, settingsLoading, client]);
 
-  }, [categories, budgetSettings, userName, settingsLoading, client]);
-
-
-  // 4. Effect to handle Category Selection Logic (UI Only)
   useEffect(() => {
-    // If we are NOT typing a custom category
     if (!isCustomCategory) {
-      // If the currently selected 'category' is no longer in the list (e.g. deleted), reset to first available
       if (!categories.includes(category) && categories.length > 0) {
         setCategory(categories[0]);
       } else if (categories.length === 0) {
-        // If list is empty
         setCategory('');
       } else if (category === '') {
-          // Initial set
           setCategory(categories[0]);
       }
     }
   }, [categories, category, isCustomCategory]);
 
-  // Fetch Transactions
-  const fetchTransactions = useCallback(async () => {
+  const fetchTransactions = useCallback(async (isSilent = false) => {
     try {
-      setLoading(true);
+      if (!isSilent) setLoading(true); 
       const { data, error } = await client
         .from('transactions')
         .select('*');
-
       if (error) throw error;
-
       if (data) {
         setTransactions(data as Transaction[]);
         calculateStats(data as Transaction[]);
@@ -277,7 +266,7 @@ function ExpenseTracker() {
     } catch (error) {
       console.error('Error fetching transactions:', error);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   }, [client]);
 
@@ -285,139 +274,87 @@ function ExpenseTracker() {
     fetchTransactions();
   }, [fetchTransactions]);
 
-  // Calculate Totals
   const calculateStats = (data: Transaction[]) => {
     const income = data
       .filter(t => t.type === TransactionType.INCOME)
       .reduce((acc, curr) => acc + curr.amount, 0);
-    
     const expense = data
       .filter(t => t.type === TransactionType.EXPENSE)
       .reduce((acc, curr) => acc + curr.amount, 0);
-
-    setStats({
-      income,
-      expense,
-      balance: income - expense
-    });
+    setStats({ income, expense, balance: income - expense });
   };
 
-  // Triggered by the main file input (Manual attach)
   const handleManualFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files ? e.target.files[0] : null;
     setFile(selectedFile);
   };
 
-  // Handle Form Submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount) return;
     
     const finalCategory = category.trim();
-
-    if (!finalCategory) {
-      alert("Please enter a category");
-      return;
-    }
-
-    // Add new category if it's custom and not in list
+    if (!finalCategory) { alert("Please enter a category"); return; }
     if (isCustomCategory && !categories.includes(finalCategory)) {
       setCategories(prev => [finalCategory, ...prev]); 
-      // The useEffect will handle saving to Supabase automatically
     }
 
     try {
       setSubmitting(true);
       let slipUrl = null;
-
       if (file) {
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
         const filePath = `${fileName}`;
-
-        const { error: uploadError } = await client.storage
-          .from('slips')
-          .upload(filePath, file);
-
+        const { error: uploadError } = await client.storage.from('slips').upload(filePath, file);
         if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = client.storage
-          .from('slips')
-          .getPublicUrl(filePath);
-
+        const { data: { publicUrl } } = client.storage.from('slips').getPublicUrl(filePath);
         slipUrl = publicUrl;
       }
-
-      const { error: insertError } = await client
-        .from('transactions')
-        .insert([
-          {
+      const { error: insertError } = await client.from('transactions').insert([{
             amount: parseFloat(amount),
             type,
             category: finalCategory,
             description: note.trim(),
             slip_url: slipUrl,
             created_at: new Date().toISOString(),
-          }
-        ]);
-
+          }]);
       if (insertError) throw insertError;
-
       setAmount('');
       setNote('');
       setFile(null);
-      if (categories.length > 0) {
-        setCategory(categories[0]);
-      }
+      if (categories.length > 0) setCategory(categories[0]);
       setIsCustomCategory(false);
-
-      // Reset file inputs
       const fileInput = document.getElementById('slip-upload') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
-      
-      await fetchTransactions();
-
+      await fetchTransactions(true);
     } catch (error) {
       console.error('Error saving transaction:', error);
-      alert('Failed to save. Check console for details.');
+      alert('Failed to save.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Handle Delete Single
   const handleDelete = async (id: string) => {
     if (!window.confirm(t.confirmDelete)) return;
-
     try {
-      const { error } = await client
-        .from('transactions')
-        .delete()
-        .eq('id', id);
-
+      const { error } = await client.from('transactions').delete().eq('id', id);
       if (error) throw error;
-      await fetchTransactions();
+      await fetchTransactions(true);
     } catch (error) {
       console.error('Error deleting transaction:', error);
       alert('Failed to delete transaction.');
     }
   };
 
-  // Handle Clear ALL Data
   const handleClearAll = async () => {
     if (!window.confirm(t.confirmClearAll)) return;
-    
     if (!window.confirm("CONFIRMATION: Delete all data permanently?")) return;
-
     try {
-      setLoading(true);
-      const { error } = await client
-        .from('transactions')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); 
-
+      setLoading(true); 
+      const { error } = await client.from('transactions').delete().neq('id', '00000000-0000-0000-0000-000000000000'); 
       if (error) throw error;
-      
       await fetchTransactions();
       alert("All data cleared.");
     } catch (error) {
@@ -428,7 +365,6 @@ function ExpenseTracker() {
     }
   };
 
-  // CSV Export
   const handleExportCSV = () => {
     const headers = ['Date', 'Type', 'Category', 'Amount', 'Note'];
     const rows = transactions.map(t => {
@@ -436,7 +372,6 @@ function ExpenseTracker() {
       const note = t.description ? `"${t.description.replace(/"/g, '""')}"` : '';
       return [date, t.type, t.category, t.amount, note].join(',');
     });
-
     const csvContent = [headers.join(','), ...rows].join('\n');
     const BOM = '\uFEFF';
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -449,43 +384,29 @@ function ExpenseTracker() {
     document.body.removeChild(link);
   };
 
-  // Trigger File Input for Import
-  const triggerImport = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
+  const triggerImport = () => { if (fileInputRef.current) fileInputRef.current.click(); };
 
-  // Process CSV Import
   const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setLoading(true);
     const reader = new FileReader();
-    
     reader.onload = async (event) => {
       try {
         const text = event.target?.result as string;
         const lines = text.split('\n');
         const dataRows = lines.slice(1).filter(line => line.trim() !== '');
-        
         const newTransactions = [];
-        
         for (const line of dataRows) {
           const matches = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
-          
           if (matches && matches.length >= 4) {
              const cols = line.split(',');
              if (cols.length < 4) continue;
-             
              const type = cols[1].toLowerCase().includes('income') ? TransactionType.INCOME : TransactionType.EXPENSE;
              const amount = parseFloat(cols[3]);
              if (isNaN(amount)) continue;
-
              let note = cols.slice(4).join(',');
              note = note.replace(/^"|"$/g, '').replace(/""/g, '"');
-
              newTransactions.push({
                created_at: new Date(cols[0]).toISOString(),
                type: type,
@@ -496,19 +417,13 @@ function ExpenseTracker() {
              });
           }
         }
-
         if (newTransactions.length > 0) {
-          const { error } = await client
-            .from('transactions')
-            .insert(newTransactions);
-            
-          if (error) throw error;
+          await client.from('transactions').insert(newTransactions);
           alert(`${t.importSuccess} (${newTransactions.length} items)`);
           await fetchTransactions();
         } else {
           alert(t.importError);
         }
-
       } catch (err) {
         console.error("Import error", err);
         alert(t.importError);
@@ -517,104 +432,51 @@ function ExpenseTracker() {
         if (fileInputRef.current) fileInputRef.current.value = '';
       }
     };
-
     reader.readAsText(file);
   };
 
-  // Handle Chart Download
   const handleDownloadChart = async () => {
     if (chartRef.current) {
       try {
-        // Dynamically load library if missing
-        if (!window.html2canvas) {
-          await loadHtml2Canvas();
-        }
-
-        const canvas = await window.html2canvas(chartRef.current, {
-          backgroundColor: darkMode ? '#1e293b' : '#ffffff', // Slate-800 or White
-          scale: 2 // Higher resolution
-        });
-        
+        if (!window.html2canvas) await loadHtml2Canvas();
+        const canvas = await window.html2canvas(chartRef.current, { backgroundColor: darkMode ? '#1c1c1e' : '#ffffff', scale: 2 });
         const link = document.createElement('a');
-        link.download = `expense_chart_${chartView}_${new Date().toISOString().split('T')[0]}.png`;
+        link.download = `expense_chart.png`;
         link.href = canvas.toDataURL();
         link.click();
-      } catch (error) {
-        console.error("Chart export failed", error);
-        const errMsg = lang === 'th' 
-          ? "ไม่สามารถโหลดระบบสร้างรูปภาพได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต" 
-          : "Failed to load image generation library. Please check your internet connection.";
-        alert(errMsg);
-      }
+      } catch (error) { alert("Failed to save chart."); }
     }
   };
 
-  const handleViewSlip = (url: string) => {
-    setSelectedSlip(url);
-    setModalOpen(true);
-  };
-
+  const handleViewSlip = (url: string) => { setSelectedSlip(url); setModalOpen(true); };
   const handleCategorySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
-    if (val === 'CUSTOM_NEW') {
-      setIsCustomCategory(true);
-      setCategory('');
-    } else {
-      setIsCustomCategory(false);
-      setCategory(val);
-    }
+    if (val === 'CUSTOM_NEW') { setIsCustomCategory(true); setCategory(''); } 
+    else { setIsCustomCategory(false); setCategory(val); }
   };
-
-  const toggleLanguage = () => {
-    setLang(prev => prev === 'en' ? 'th' : 'en');
-  };
-
-  // Sorting Handler
+  const toggleLanguage = () => { setLang(prev => prev === 'en' ? 'th' : 'en'); };
   const requestSort = (key: keyof Transaction) => {
     let direction: 'asc' | 'desc' = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
+    if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
     setSortConfig({ key, direction });
   };
 
-  // Filter Logic
   const filteredTransactions = useMemo(() => {
     let data = [...transactions];
-    
-    // Filter
-    if (filterCategory !== 'ALL') {
-      data = data.filter(t => t.category === filterCategory);
-    }
-
-    // Sort
+    if (filterCategory !== 'ALL') data = data.filter(t => t.category === filterCategory);
     if (sortConfig.key) {
       data.sort((a, b) => {
         const aValue = a[sortConfig.key!];
         const bValue = b[sortConfig.key!];
-
         if (aValue === null || aValue === undefined) return 1;
         if (bValue === null || bValue === undefined) return -1;
-
-        if (aValue < bValue) {
-          return sortConfig.direction === 'asc' ? -1 : 1;
-        }
-        if (aValue > bValue) {
-          return sortConfig.direction === 'asc' ? 1 : -1;
-        }
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
       });
     }
-
     return data;
   }, [transactions, filterCategory, sortConfig]);
-
-  const filteredTotal = useMemo(() => {
-    if (filterCategory === 'ALL') return 0;
-    return filteredTransactions.reduce((acc, curr) => {
-      return acc + (curr.type === TransactionType.INCOME ? curr.amount : -curr.amount);
-    }, 0);
-  }, [filteredTransactions, filterCategory]);
 
   const availableFilterCategories = useMemo(() => {
     const cats = new Set<string>();
@@ -623,25 +485,14 @@ function ExpenseTracker() {
     return Array.from(cats).sort();
   }, [transactions, categories]);
 
-  // Helper for Sort Icon
-  const SortIcon = ({ columnKey }: { columnKey: keyof Transaction }) => {
-    if (sortConfig.key !== columnKey) return <ArrowUpDown size={14} className="opacity-30 ml-1" />;
-    return sortConfig.direction === 'asc' 
-      ? <ArrowUp size={14} className="text-blue-500 ml-1" /> 
-      : <ArrowDown size={14} className="text-blue-500 ml-1" />;
-  };
+  // Glow Class Generator
+  const glowClass = glowEnabled 
+    ? 'shadow-[0_0_20px_-5px_rgba(0,122,255,0.3)] dark:shadow-[0_0_20px_-5px_rgba(0,122,255,0.2)] border border-[#007AFF]/20' 
+    : 'shadow-sm';
 
-  // Title Helper
-  const getChartTitle = () => {
-    if (chartView === 'daily') return t.chartTitle;
-    if (chartView === 'monthly') return t.monthlyChartTitle;
-    return t.pieChartTitle;
-  }
-
-  // Render Admin View
   if (currentView === 'admin') {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 font-sans transition-colors duration-300">
+      <div className="min-h-screen bg-[#F2F2F7] dark:bg-black font-sans transition-colors duration-300">
          <AdminPanel 
             lang={lang}
             onBack={() => setCurrentView('dashboard')}
@@ -652,564 +503,346 @@ function ExpenseTracker() {
             setBudgetSettings={setBudgetSettings}
             userName={userName}
             setUserName={setUserName}
+            glowEnabled={glowEnabled}
+            setGlowEnabled={setGlowEnabled}
          />
       </div>
     );
   }
 
-  // Render Dashboard
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 font-sans transition-colors duration-300">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Header - Default Order (Top) */}
-        <header className="lg:col-span-3 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
-          <div className="flex items-center gap-4">
-             <div className="bg-gradient-to-tr from-blue-600 to-blue-500 dark:from-blue-500 dark:to-blue-600 text-white p-3.5 rounded-2xl shadow-xl shadow-blue-200/50 dark:shadow-none transition-transform hover:scale-105">
-               <Wallet size={32} strokeWidth={2.5} />
-            </div>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white mb-1 transition-colors">{t.appTitle}</h1>
+    <div className="min-h-screen bg-[#F2F2F7] dark:bg-black font-sans text-slate-900 dark:text-white transition-colors duration-300 pb-20">
+      
+      {/* 1. Glassmorphism Header */}
+      <div className="sticky top-0 z-40 bg-white/70 dark:bg-[#1C1C1E]/70 backdrop-blur-xl border-b border-gray-200/50 dark:border-white/10 transition-all">
+          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {/* Logo */}
+                <div className={`h-9 w-9 bg-black dark:bg-white rounded-[10px] flex items-center justify-center text-white dark:text-black shadow-lg shadow-black/10 ${glowEnabled ? 'shadow-[0_0_10px_rgba(0,0,0,0.5)] dark:shadow-[0_0_10px_rgba(255,255,255,0.5)]' : ''}`}>
+                    <Wallet size={18} strokeWidth={2.5} />
+                </div>
+                <div>
+                    <h1 className="text-base font-bold tracking-tight leading-none">Expense Pro</h1>
+                    {isSyncing ? (
+                         <span className="text-[10px] text-[#007AFF] flex items-center gap-1 font-medium animate-pulse mt-0.5"><Cloud size={10} /> Syncing</span>
+                    ) : (
+                         <span className="text-[10px] text-gray-400 font-medium mt-0.5">My Wallet</span>
+                    )}
+                </div>
+              </div>
               <div className="flex items-center gap-2">
-                <p className="text-slate-500 dark:text-slate-400 transition-colors text-sm font-medium">{t.subTitle}</p>
-                {isSyncing && (
-                  <span className="flex items-center gap-1 text-xs text-blue-500 animate-pulse bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full">
-                    <Cloud size={12} />
-                    {lang === 'th' ? 'กำลังซิงค์...' : 'Syncing...'}
-                  </span>
-                )}
+                  <button onClick={toggleLanguage} className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-[#2C2C2E] text-[10px] font-bold active:scale-90 transition-transform">{lang.toUpperCase()}</button>
+                  <button onClick={() => setDarkMode(!darkMode)} className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-[#2C2C2E] active:scale-90 transition-transform">{darkMode ? <Sun size={14} /> : <Moon size={14} />}</button>
+                  <button onClick={() => setCurrentView('admin')} className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-[#2C2C2E] active:scale-90 transition-transform relative">
+                      <SettingsIcon size={14} />
+                      {!userName && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#FF3B30] rounded-full border border-white dark:border-[#2C2C2E]"></span>}
+                  </button>
               </div>
-            </div>
           </div>
-          
-          <div className="flex gap-2 self-end md:self-auto">
-            {/* Settings/Admin Button */}
-            <button
-              onClick={() => setCurrentView('admin')}
-              className="p-2.5 rounded-full bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center justify-center relative"
-              title={t.adminSettings}
-            >
-              <SettingsIcon size={18} />
-              {!userName && <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-800"></span>}
-            </button>
-
-            {/* Refresh Button */}
-            <button
-              onClick={() => {
-                fetchTransactions();
-                fetchSettings();
-              }}
-              disabled={loading || settingsLoading}
-              className={`p-2.5 rounded-full bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center justify-center ${loading || settingsLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
-              title={t.refresh}
-            >
-              <RefreshCw size={18} className={loading || settingsLoading ? 'animate-spin' : ''} />
-            </button>
-
-            {/* Language Toggle */}
-            <button
-              onClick={toggleLanguage}
-              className="p-2.5 rounded-full bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center gap-1 font-medium text-sm"
-              title="Switch Language"
-            >
-              <Globe size={18} />
-              <span>{lang.toUpperCase()}</span>
-            </button>
-
-            {/* Dark Mode Toggle */}
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              className="p-2.5 rounded-full bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
-              title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            >
-              {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
-          </div>
-        </header>
-
-        {/* Stats Cards - Order 2 Mobile, Order 2 Desktop */}
-        <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6 order-2 lg:order-2">
-          <StatsCard 
-            title={t.totalBalance} 
-            amount={stats.balance} 
-            icon={Wallet} 
-            type={stats.balance >= 0 ? 'success' : 'danger'} 
-          />
-          <StatsCard 
-            title={t.totalIncome} 
-            amount={stats.income} 
-            icon={TrendingUp} 
-            type="success" 
-          />
-          <StatsCard 
-            title={t.totalExpense} 
-            amount={stats.expense} 
-            icon={TrendingDown} 
-            type="danger" 
-          />
-        </div>
-
-        {/* Graph Section - Order 3 Mobile, Order 3 Desktop */}
-        {transactions.length > 0 && (
-           <div ref={chartRef} className="lg:col-span-3 order-3 lg:order-3 bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
-                {/* Title */}
-                <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 self-start sm:self-auto">
-                   {getChartTitle()}
-                </h3>
-                
-                {/* Controls & Legend Container */}
-                <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-4 self-end sm:self-auto w-full sm:w-auto">
-                  
-                  {/* Download Chart Button */}
-                  <button 
-                    onClick={handleDownloadChart}
-                    className="p-2 text-slate-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-lg transition-colors flex items-center gap-2 text-xs font-medium border border-slate-200 dark:border-slate-600"
-                    title={t.downloadChart}
-                  >
-                    <Image size={16} />
-                    <span className="hidden sm:inline">{t.downloadChart}</span>
-                  </button>
-
-                  {/* Toggle Switch */}
-                  <div className="bg-slate-100 dark:bg-slate-700 rounded-lg p-1 border border-slate-200 dark:border-slate-600 flex w-full sm:w-auto">
-                    <button
-                      onClick={() => setChartView('daily')}
-                      className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
-                        chartView === 'daily' 
-                          ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-300 shadow-sm' 
-                          : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                      }`}
-                      title={t.viewDaily}
-                    >
-                      <BarChart3 size={14} />
-                      <span className="hidden sm:inline">{t.viewDaily}</span>
-                    </button>
-                    <button
-                      onClick={() => setChartView('monthly')}
-                      className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
-                        chartView === 'monthly' 
-                          ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-300 shadow-sm' 
-                          : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                      }`}
-                      title={t.viewMonthly}
-                    >
-                      <Calendar size={14} />
-                      <span className="hidden sm:inline">{t.viewMonthly}</span>
-                    </button>
-                    <button
-                      onClick={() => setChartView('pie')}
-                      className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
-                        chartView === 'pie' 
-                          ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-300 shadow-sm' 
-                          : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                      }`}
-                      title={t.viewPie}
-                    >
-                      <PieChart size={14} />
-                      <span className="hidden sm:inline">{t.viewPie}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Chart Content */}
-              {chartView === 'daily' && (
-                <>
-                  <div className="flex justify-end mb-2 gap-4 text-xs font-medium text-slate-600 dark:text-slate-300">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-green-500"></span> 
-                      {t.income}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-red-600"></span> 
-                      {t.expense}
-                    </div>
-                  </div>
-                  <ExpenseChart transactions={transactions} />
-                </>
-              )}
-              
-              {chartView === 'monthly' && (
-                <>
-                  <div className="flex justify-end mb-2 gap-4 text-xs font-medium text-slate-600 dark:text-slate-300">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-green-500"></span> 
-                      {t.income}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-red-600"></span> 
-                      {t.expense}
-                    </div>
-                  </div>
-                  <MonthlyChart transactions={transactions} lang={lang} />
-                </>
-              )}
-
-              {chartView === 'pie' && (
-                <CategoryPieChart transactions={transactions} />
-              )}
-           </div>
-        )}
-
-        {/* Input Form Section - Order 1 Mobile (High Priority), Order 4 Desktop (Sidebar) */}
-        <div className="lg:col-span-1 order-1 lg:order-4">
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 sticky top-8 transition-colors">
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-                <Plus className="w-5 h-5 text-accent" />
-                {t.newTransaction}
-              </h2>
-              
-              <form onSubmit={handleSubmit} className="space-y-5">
-                
-                {/* Type Toggle */}
-                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-700 rounded-lg">
-                  <button
-                    type="button"
-                    onClick={() => setType(TransactionType.INCOME)}
-                    className={`py-2 text-sm font-medium rounded-md transition-all ${
-                      type === TransactionType.INCOME 
-                        ? 'bg-white dark:bg-slate-600 text-green-600 dark:text-green-400 shadow-sm' 
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    {t.income}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setType(TransactionType.EXPENSE)}
-                    className={`py-2 text-sm font-medium rounded-md transition-all ${
-                      type === TransactionType.EXPENSE 
-                        ? 'bg-white dark:bg-slate-600 text-red-600 dark:text-red-400 shadow-sm' 
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    {t.expense}
-                  </button>
-                </div>
-
-                {/* Amount */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t.amount}</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">฿</span>
-                    <input
-                      type="number"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full pl-8 pr-4 py-2 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-slate-400"
-                      required
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-                </div>
-
-                {/* Category Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t.category}</label>
-                  {!isCustomCategory ? (
-                    <div className="flex flex-col gap-2">
-                      <div className="relative">
-                        <select
-                          value={category}
-                          onChange={handleCategorySelect}
-                          className="w-full px-4 py-2 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none appearance-none"
-                        >
-                          <option className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200" value="" disabled>{t.selectCategory}</option>
-                          {categories.map((cat) => (
-                            <option className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200" key={cat} value={cat}>{cat}</option>
-                          ))}
-                          <option className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200" disabled>──────────</option>
-                          <option className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200" value="CUSTOM_NEW">{t.addNewCategory}</option>
-                        </select>
-                        <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input 
-                        type="text"
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        placeholder={t.typeCategory}
-                        className="flex-1 px-4 py-2 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none placeholder:text-slate-400"
-                        autoFocus
-                      />
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          setIsCustomCategory(false);
-                          setCategory(categories.length > 0 ? categories[0] : '');
-                        }}
-                        className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg"
-                        title="Cancel custom category"
-                      >
-                        <X size={20} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Note */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t.note}</label>
-                  <input
-                    type="text"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder={t.notePlaceholder}
-                    className="w-full px-4 py-2 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-slate-400"
-                  />
-                </div>
-
-                {/* Manual File Upload (Fallback) */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t.slipImage}</label>
-                  <div className="relative">
-                    <input
-                      id="slip-upload"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleManualFileSelect}
-                      className="hidden"
-                    />
-                    {file ? (
-                        <div className="flex items-center justify-between p-3 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-700/50">
-                            <div className="flex items-center gap-2 overflow-hidden">
-                                <FileText size={16} className="text-blue-500 flex-shrink-0" />
-                                <span className="text-sm text-slate-600 dark:text-slate-300 truncate">{file.name}</span>
-                            </div>
-                            <button 
-                                type="button"
-                                onClick={() => setFile(null)}
-                                className="text-slate-400 hover:text-red-500 transition-colors"
-                                title={t.removeFile}
-                            >
-                                <X size={16} />
-                            </button>
-                        </div>
-                    ) : (
-                        <label 
-                        htmlFor="slip-upload"
-                        className="flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed border-slate-200 dark:border-slate-600 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-500 transition-all text-sm text-slate-500 dark:text-slate-400"
-                        >
-                        <ImageIcon size={18} />
-                        {t.clickToUpload}
-                        </label>
-                    )}
-                  </div>
-                </div>
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-sm shadow-blue-200 dark:shadow-none"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="animate-spin w-4 h-4" />
-                      {t.saving}
-                    </>
-                  ) : (
-                    t.saveTransaction
-                  )}
-                </button>
-              </form>
-            </div>
-        </div>
-
-        {/* History Table Section - Order 4 Mobile, Order 5 Desktop */}
-        <div className="lg:col-span-2 order-4 lg:order-5">
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden transition-colors">
-              
-              {/* Table Header with Filter */}
-              <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-lg font-semibold text-slate-800 dark:text-white">{t.recentTransactions}</h2>
-                  <span className="text-xs text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-full">{filteredTransactions.length} {t.items}</span>
-                </div>
-                
-                {/* Filter and Summary Container */}
-                <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 w-full sm:w-auto">
-                    {/* Note: Clear All Button Moved to Admin Panel */}
-
-                    {/* Summary Badge (Shown when filtering) */}
-                    {filterCategory !== 'ALL' && (
-                        <div className="animate-in fade-in slide-in-from-right-4 duration-300 flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg text-sm font-medium border border-blue-100 dark:border-blue-800/30 shadow-sm whitespace-nowrap">
-                            <span className="text-xs uppercase tracking-wide opacity-75">{t.totalFor} "{filterCategory}":</span>
-                            <span className={`font-bold ${filteredTotal >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                {filteredTotal >= 0 ? '+' : ''}฿{filteredTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </span>
-                        </div>
-                    )}
-                    
-                    {/* CSV Actions */}
-                    <div className="flex items-center gap-1">
-                      <button 
-                        onClick={handleExportCSV}
-                        className="p-2 rounded-lg bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                        title={t.exportCSV}
-                      >
-                        <Download size={16} />
-                      </button>
-                      <button 
-                        onClick={triggerImport}
-                        className="p-2 rounded-lg bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                        title={t.importCSV}
-                      >
-                        <Upload size={16} />
-                      </button>
-                      <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleImportCSV} 
-                        accept=".csv" 
-                        className="hidden" 
-                      />
-                    </div>
-
-                    {/* Filter Dropdown */}
-                    <div className="relative w-full sm:w-auto">
-                      <div className="relative flex items-center gap-2 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 w-full shadow-sm hover:border-slate-300 dark:hover:border-slate-500 transition-colors">
-                        <Filter size={16} className="text-slate-400 shrink-0" />
-                        <select 
-                          value={filterCategory}
-                          onChange={(e) => setFilterCategory(e.target.value)}
-                          className="bg-transparent text-sm text-slate-600 dark:text-slate-300 outline-none w-full cursor-pointer appearance-none pr-6 z-10"
-                        >
-                          <option className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200" value="ALL">{t.allCategories}</option>
-                          {availableFilterCategories.map(cat => (
-                            <option className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200" key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </select>
-                        <ChevronDown size={14} className="absolute right-3 text-slate-400 pointer-events-none" />
-                      </div>
-                    </div>
-                </div>
-              </div>
-              
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
-                      <th 
-                        className="p-4 font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors select-none"
-                        onClick={() => requestSort('created_at')}
-                      >
-                        <div className="flex items-center gap-1">{t.date} <SortIcon columnKey="created_at" /></div>
-                      </th>
-                      <th 
-                        className="p-4 font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors select-none"
-                        onClick={() => requestSort('category')}
-                      >
-                         <div className="flex items-center gap-1">{t.categoryNote} <SortIcon columnKey="category" /></div>
-                      </th>
-                      <th 
-                        className="p-4 font-medium text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors select-none"
-                        onClick={() => requestSort('amount')}
-                      >
-                         <div className="flex items-center justify-end gap-1">{t.amount} <SortIcon columnKey="amount" /></div>
-                      </th>
-                      <th className="p-4 font-medium text-center">{t.slip}</th>
-                      <th className="p-4 font-medium text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                    {loading ? (
-                      <tr>
-                        <td colSpan={5} className="p-8 text-center text-slate-400 dark:text-slate-500">
-                          <Loader2 className="animate-spin w-6 h-6 mx-auto mb-2" />
-                          {t.loading}
-                        </td>
-                      </tr>
-                    ) : filteredTransactions.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="p-8 text-center text-slate-400 dark:text-slate-500">
-                          <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                          {t.noTransactions}
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredTransactions.map((t) => (
-                        <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
-                          <td className="p-4 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <Calendar size={14} className="text-slate-400 dark:text-slate-500" />
-                              {new Date(t.created_at).toLocaleDateString(lang === 'th' ? 'th-TH' : 'en-US')}
-                            </div>
-                          </td>
-                          <td className="p-4 text-sm text-slate-800 dark:text-slate-200">
-                            <div className="flex flex-col items-start gap-1">
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
-                                <Tag size={12} />
-                                {t.category}
-                              </span>
-                              {t.description && (
-                                <span className="text-xs text-slate-500 dark:text-slate-400 pl-1">{t.description}</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className={`p-4 text-sm font-bold text-right ${
-                            t.type === TransactionType.INCOME ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                          }`}>
-                            {t.type === TransactionType.INCOME ? '+' : '-'}
-                            ฿{t.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                          </td>
-                          <td className="p-4 text-center">
-                            {t.slip_url ? (
-                              <button
-                                onClick={() => handleViewSlip(t.slip_url!)}
-                                className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 p-2 rounded-full transition-all"
-                                title="View Slip"
-                              >
-                                <Eye size={18} />
-                              </button>
-                            ) : (
-                              <span className="text-slate-300 dark:text-slate-600">-</span>
-                            )}
-                          </td>
-                          <td className="p-4 text-center">
-                            <button
-                                onClick={() => handleDelete(t.id)}
-                                className="text-red-400 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-full transition-all opacity-0 group-hover:opacity-100"
-                                title={lang === 'th' ? 'ลบรายการ' : 'Delete'}
-                              >
-                                <Trash2 size={18} />
-                              </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-        </div>
-
-        {/* Footer */}
-        <div className="lg:col-span-3 order-5 lg:order-6 text-center pt-8 pb-4 text-slate-400 dark:text-slate-500 text-sm font-medium opacity-60 hover:opacity-100 transition-opacity">
-          {t.credit}
-        </div>
       </div>
 
-      <SlipModal 
-        isOpen={modalOpen} 
-        onClose={() => setModalOpen(false)} 
-        imageUrl={selectedSlip} 
-      />
+      <div className="max-w-5xl mx-auto px-4 md:px-6 pt-6 grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
+        
+        {/* LEFT COLUMN (Summary & Form) */}
+        <div className="lg:col-span-7 space-y-6">
+          
+          {/* Main Balance Card (Wallet Style) */}
+          <div className={`bg-white dark:bg-[#1C1C1E] rounded-[28px] p-6 relative overflow-hidden transition-all hover:scale-[1.01] duration-300 ${glowClass}`}>
+             <div className="relative z-10 flex flex-col justify-between h-full">
+                <div className="flex justify-between items-start mb-4">
+                    <span className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">{t.totalBalance}</span>
+                    <div className="bg-[#007AFF]/10 p-1.5 rounded-full text-[#007AFF]">
+                        <TrendingUp size={16} />
+                    </div>
+                </div>
+                
+                <h2 className={`text-[40px] leading-tight font-bold tracking-tight mb-6 ${glowEnabled ? 'drop-shadow-[0_0_15px_rgba(0,122,255,0.6)]' : ''}`}>
+                  ฿<CountUpAnimation end={stats.balance} />
+                </h2>
+                
+                <div className="grid grid-cols-2 gap-4">
+                   <div className="bg-gray-50 dark:bg-[#2C2C2E] p-4 rounded-2xl flex items-center gap-3 transition-colors hover:bg-gray-100 dark:hover:bg-[#3A3A3C]">
+                      <div className="p-2 bg-[#34C759]/10 rounded-full text-[#34C759]">
+                          <ArrowUp size={16} strokeWidth={3} />
+                      </div>
+                      <div>
+                          <div className="text-[11px] font-semibold text-gray-400 uppercase">{t.income}</div>
+                          <div className="text-sm font-bold">฿{stats.income.toLocaleString()}</div>
+                      </div>
+                   </div>
+                   <div className="bg-gray-50 dark:bg-[#2C2C2E] p-4 rounded-2xl flex items-center gap-3 transition-colors hover:bg-gray-100 dark:hover:bg-[#3A3A3C]">
+                      <div className="p-2 bg-[#FF3B30]/10 rounded-full text-[#FF3B30]">
+                          <ArrowDown size={16} strokeWidth={3} />
+                      </div>
+                      <div>
+                          <div className="text-[11px] font-semibold text-gray-400 uppercase">{t.expense}</div>
+                          <div className="text-sm font-bold">฿{stats.expense.toLocaleString()}</div>
+                      </div>
+                   </div>
+                </div>
+             </div>
+          </div>
+
+          {/* iOS Style Input Group */}
+          <div>
+             <h3 className="ml-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">{t.newTransaction}</h3>
+             
+             <div className={`bg-white dark:bg-[#1C1C1E] rounded-[24px] overflow-hidden ${glowClass}`}>
+                 
+                 {/* 1. Segmented Control (Animated) */}
+                 <div className="p-4 border-b border-gray-100 dark:border-[#2C2C2E]">
+                    <div className="relative bg-[#767680]/10 dark:bg-[#767680]/20 rounded-[9px] p-0.5 flex h-9">
+                        <div 
+                            className={`absolute top-0.5 bottom-0.5 w-[calc(50%-2px)] bg-white dark:bg-[#636366] rounded-[7px] shadow-sm transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] ${type === TransactionType.INCOME ? 'left-[calc(50%+0px)]' : 'left-0.5'}`}
+                        ></div>
+                        <button 
+                            type="button"
+                            onClick={() => setType(TransactionType.EXPENSE)}
+                            className={`relative z-10 flex-1 text-[13px] font-semibold transition-colors duration-200 ${type === TransactionType.EXPENSE ? 'text-black dark:text-white' : 'text-gray-500'}`}
+                        >
+                            {t.expense}
+                        </button>
+                        <button 
+                            type="button"
+                            onClick={() => setType(TransactionType.INCOME)}
+                            className={`relative z-10 flex-1 text-[13px] font-semibold transition-colors duration-200 ${type === TransactionType.INCOME ? 'text-black dark:text-white' : 'text-gray-500'}`}
+                        >
+                            {t.income}
+                        </button>
+                    </div>
+                 </div>
+
+                 <form onSubmit={handleSubmit}>
+                    <div className="p-6 flex flex-col items-center justify-center">
+                        <span className="text-xs text-gray-400 font-medium mb-1">{t.amount}</span>
+                        <div className="flex items-baseline gap-1">
+                            <span className="text-3xl font-light text-gray-400">฿</span>
+                            <input 
+                                type="number" 
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
+                                placeholder="0"
+                                className="bg-transparent text-center text-[56px] font-semibold outline-none w-full max-w-[240px] placeholder:text-gray-200 dark:placeholder:text-gray-800 caret-[#007AFF] p-0 m-0 leading-tight"
+                                step="0.01"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Grouped List Inputs */}
+                    <div className="px-4 pb-4">
+                        <div className="bg-[#F2F2F7] dark:bg-[#2C2C2E] rounded-[16px] overflow-hidden">
+                            {/* Category Row */}
+                            <div className="flex items-center px-4 py-3 border-b border-gray-300/50 dark:border-white/10">
+                                <div className="p-1.5 bg-[#007AFF] rounded-[6px] mr-3">
+                                    <Tag size={14} className="text-white" />
+                                </div>
+                                <div className="flex-1 relative">
+                                    {!isCustomCategory ? (
+                                        <select 
+                                            value={category}
+                                            onChange={handleCategorySelect}
+                                            className="w-full bg-transparent appearance-none outline-none text-[15px] font-medium text-black dark:text-white"
+                                        >
+                                            <option value="" className="text-gray-400">{t.selectCategory}</option>
+                                            {categories.map(c => <option key={c} value={c} className="text-black dark:text-white bg-white dark:bg-black">{c}</option>)}
+                                            <option value="CUSTOM_NEW" className="text-[#007AFF] font-bold">+ {t.addNewCategory}</option>
+                                        </select>
+                                    ) : (
+                                        <div className="flex w-full">
+                                            <input 
+                                                value={category} 
+                                                onChange={(e) => setCategory(e.target.value)}
+                                                placeholder="New category..."
+                                                className="bg-transparent w-full outline-none text-[15px]"
+                                                autoFocus
+                                            />
+                                            <button onClick={() => setIsCustomCategory(false)} className="text-gray-400"><X size={16}/></button>
+                                        </div>
+                                    )}
+                                </div>
+                                {!isCustomCategory && <ChevronDown size={16} className="text-gray-400 pointer-events-none" />}
+                            </div>
+
+                            {/* Note Row */}
+                            <div className="flex items-center px-4 py-3 border-b border-gray-300/50 dark:border-white/10">
+                                <div className="p-1.5 bg-[#FF9500] rounded-[6px] mr-3">
+                                    <FileText size={14} className="text-white" />
+                                </div>
+                                <input 
+                                    value={note}
+                                    onChange={(e) => setNote(e.target.value)}
+                                    placeholder={t.note}
+                                    className="flex-1 bg-transparent outline-none text-[15px] placeholder:text-gray-400"
+                                />
+                            </div>
+
+                            {/* Slip Row */}
+                            <div className="flex items-center px-4 py-3">
+                                <div className="p-1.5 bg-[#AF52DE] rounded-[6px] mr-3">
+                                    <ImageIcon size={14} className="text-white" />
+                                </div>
+                                <input id="slip" type="file" accept="image/*" onChange={handleManualFileSelect} className="hidden" />
+                                <label htmlFor="slip" className="flex-1 flex items-center justify-between cursor-pointer">
+                                    <span className={`text-[15px] ${file ? 'text-[#007AFF]' : 'text-gray-400'}`}>
+                                        {file ? file.name : t.slipImage}
+                                    </span>
+                                    {file && <button onClick={(e) => {e.preventDefault(); setFile(null)}}><X size={16} className="text-gray-400"/></button>}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="px-4 pb-4">
+                        <button 
+                            type="submit" 
+                            disabled={submitting}
+                            className={`w-full bg-[#007AFF] hover:bg-[#0062c4] text-white font-semibold text-[17px] py-3.5 rounded-[14px] transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 ${glowEnabled ? 'shadow-[0_0_25px_rgba(0,122,255,0.6)]' : 'shadow-lg shadow-blue-500/20'}`}
+                        >
+                            {submitting ? <Loader2 className="animate-spin"/> : t.saveTransaction}
+                        </button>
+                    </div>
+                 </form>
+             </div>
+          </div>
+
+          {/* Charts Area (Widget Style) */}
+          <div>
+            <h3 className="ml-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">{t.chartTitle}</h3>
+            <div className={`bg-white dark:bg-[#1C1C1E] rounded-[24px] p-6 ${glowClass}`} ref={chartRef}>
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex bg-[#767680]/10 dark:bg-[#767680]/20 p-0.5 rounded-lg">
+                    {['daily', 'monthly', 'pie'].map((v) => (
+                        <button key={v} onClick={() => setChartView(v as any)} className={`px-3 py-1 text-[13px] font-medium rounded-[6px] capitalize transition-all ${chartView === v ? 'bg-white dark:bg-[#636366] shadow-sm text-black dark:text-white' : 'text-gray-500'}`}>
+                            {v === 'pie' ? t.viewPie : v === 'monthly' ? t.viewMonthly : t.viewDaily}
+                        </button>
+                    ))}
+                    </div>
+                    <button onClick={handleDownloadChart} className="w-8 h-8 flex items-center justify-center bg-gray-100 dark:bg-[#2C2C2E] rounded-full text-[#007AFF] active:scale-90 transition-transform"><Image size={16}/></button>
+                </div>
+                {chartView === 'daily' && <ExpenseChart transactions={transactions} />}
+                {chartView === 'monthly' && <MonthlyChart transactions={transactions} lang={lang} />}
+                {chartView === 'pie' && <CategoryPieChart transactions={transactions} />}
+            </div>
+          </div>
+
+        </div>
+
+        {/* RIGHT COLUMN (Transactions List - List Style) */}
+        <div className="lg:col-span-5">
+           <div>
+              <div className="flex items-center justify-between mb-4 ml-4 mr-2">
+                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t.recentTransactions}</h3>
+                 <div className="flex items-center gap-2">
+                    <button onClick={() => fetchTransactions()} className={`p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-[#2C2C2E] transition-colors ${loading ? 'animate-spin text-[#007AFF]' : 'text-gray-400'}`}><RefreshCw size={14}/></button>
+                    
+                    <div className="flex gap-2">
+                        <button onClick={handleExportCSV} className="text-[#007AFF] text-[13px] font-medium active:opacity-50">{t.exportCSV}</button>
+                        <button onClick={triggerImport} className="text-[#007AFF] text-[13px] font-medium active:opacity-50">{t.importCSV}</button>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Category Filter Dropdown */}
+              <div className="mb-4 px-4">
+                  <div className="relative">
+                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500">
+                          <Filter size={14} />
+                      </div>
+                      <select 
+                          value={filterCategory}
+                          onChange={(e) => setFilterCategory(e.target.value)}
+                          className="w-full bg-white dark:bg-[#1C1C1E] text-black dark:text-white text-[13px] font-medium py-2.5 pl-9 pr-8 rounded-xl appearance-none shadow-sm outline-none transition-all cursor-pointer"
+                      >
+                          <option value="ALL">{t.allCategories}</option>
+                          {availableFilterCategories.map(c => (
+                              <option key={c} value={c}>{c}</option>
+                          ))}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
+                          <ChevronDown size={14} />
+                      </div>
+                  </div>
+              </div>
+
+              <div className={`bg-white dark:bg-[#1C1C1E] rounded-[24px] overflow-hidden min-h-[400px] ${glowClass}`}>
+                  <div className="overflow-y-auto max-h-[800px] custom-scrollbar">
+                      {loading ? (
+                          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                              <Loader2 className="animate-spin mb-2" />
+                              <span className="text-xs">{t.loading}</span>
+                          </div>
+                      ) : filteredTransactions.length === 0 ? (
+                          <div className="text-center py-20 text-gray-400 text-sm">{t.noTransactions}</div>
+                      ) : (
+                          <div className="divide-y divide-gray-100 dark:divide-[#2C2C2E]">
+                              {filteredTransactions.map((t) => (
+                              <div key={t.id} className="group flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-[#2C2C2E] transition-colors cursor-default relative">
+                                  <div className="flex items-center gap-3">
+                                      {/* Status Dot */}
+                                      <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                                          t.type === TransactionType.INCOME 
+                                          ? 'bg-[#34C759] shadow-[0_0_8px_rgba(52,199,89,0.5)]' 
+                                          : 'bg-[#FF3B30] shadow-[0_0_8px_rgba(255,59,48,0.5)]'
+                                      }`}></div>
+                                      
+                                      <div>
+                                          <div className="font-semibold text-[15px] text-black dark:text-white leading-tight">{t.category}</div>
+                                          <div className="text-[12px] text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-1">
+                                          {new Date(t.created_at).toLocaleDateString(lang === 'th' ? 'th-TH' : 'en-US', { day: 'numeric', month: 'short' })}
+                                          {t.description && <span className="text-gray-400">• {t.description}</span>}
+                                          </div>
+                                      </div>
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-3">
+                                      <div className="text-right">
+                                          <div className={`font-semibold text-[15px] ${
+                                              t.type === TransactionType.INCOME 
+                                                ? 'text-[#34C759]' 
+                                                : 'text-black dark:text-white'
+                                            } ${
+                                              glowEnabled 
+                                                ? t.type === TransactionType.INCOME 
+                                                    ? 'drop-shadow-[0_0_8px_rgba(52,199,89,0.8)]' 
+                                                    : 'drop-shadow-[0_0_8px_rgba(255,59,48,0.8)]' 
+                                                : ''
+                                            }`}>
+                                              {t.type === TransactionType.INCOME ? '+' : '-'}฿{t.amount.toLocaleString()}
+                                          </div>
+                                          {t.slip_url && (
+                                              <div onClick={(e) => { e.stopPropagation(); handleViewSlip(t.slip_url!)}} className="flex items-center justify-end gap-1 text-[11px] text-[#007AFF] cursor-pointer mt-0.5 hover:underline">
+                                                  <Eye size={10} /> View Slip
+                                              </div>
+                                          )}
+                                      </div>
+                                      <button 
+                                          onClick={() => handleDelete(t.id)}
+                                          className="text-gray-300 hover:text-[#FF3B30] p-1 rounded-full transition-colors active:scale-90"
+                                      >
+                                          <Trash2 size={16} />
+                                      </button>
+                                  </div>
+                              </div>
+                              ))}
+                          </div>
+                      )}
+                  </div>
+              </div>
+              
+              <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" className="hidden" />
+           </div>
+        </div>
+
+      </div>
+
+      <SlipModal isOpen={modalOpen} onClose={() => setModalOpen(false)} imageUrl={selectedSlip} />
     </div>
   );
 }
 
 function App() {
-  const [tempLang] = useState<Language>('en'); // Default for error screen, logic handled inside tracker
-  
-  if (!supabase) {
-    return <ConfigError t={TRANSLATIONS[tempLang]} />;
-  }
+  const [tempLang] = useState<Language>('en'); 
+  if (!supabase) return <ConfigError t={TRANSLATIONS[tempLang]} />;
   return <ExpenseTracker />;
 }
 
