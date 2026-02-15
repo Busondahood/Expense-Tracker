@@ -1,16 +1,20 @@
-💸 CashFlow Master: Track Your Wealth
-หยุดนิสัย "เงินหายไปไหนหมด?" ด้วยระบบจัดการการเงินส่วนบุคคลที่เรียบง่ายแต่ทรงพลัง ช่วยให้คุณเห็นภาพรวมรายรับ-รายจ่ายได้ในที่เดียว
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
 
-🔥 Key Features
+# Run and deploy your AI Studio app
 
-⚡ Real-time Tracking: บันทึกรายรับ-รายจ่ายได้รวดเร็ว พร้อมคำนวณยอดคงเหลือทันที
+This contains everything you need to run your app locally.
 
-📊 Insightful Analytics: กราฟแสดงสัดส่วนการใช้จ่าย (Pie Chart) แยกตามหมวดหมู่
+View your app in AI Studio: https://ai.studio/apps/drive/1p-dUHfXbNxp0B0EgDLBQkSWi2HA7RBPb
 
-📂 History & Filters: ย้อนดูรายการที่ผ่านมา พร้อมระบบกรองตามวันที่หรือประเภท
+## Run Locally
 
-📱 Responsive Design: ใช้งานได้ลื่นไหลทั้งบนคอมพิวเตอร์และมือถือ
+**Prerequisites:**  Node.js
 
-💾 Auto-save: ระบบบันทึกข้อมูลอัตโนมัติ (Local Storage / Database)
 
-✅ Export & inport csv file
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`

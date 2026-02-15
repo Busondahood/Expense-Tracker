@@ -69,8 +69,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   if (!isAuthenticated) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh] p-4">
-        <div className="w-full max-w-sm text-center">
-            <div className="w-24 h-24 bg-gray-200 dark:bg-[#1C1C1E] rounded-full flex items-center justify-center mx-auto mb-8 shadow-sm">
+        <div className="w-full max-w-sm text-center animate-enter-card">
+            <div className="w-24 h-24 bg-gray-200 dark:bg-[#1C1C1E] rounded-full flex items-center justify-center mx-auto mb-8 shadow-sm animate-scale-in">
                 <Lock size={40} className="text-gray-400" />
             </div>
             <h2 className="text-2xl font-bold text-black dark:text-white mb-2">{t.adminLogin}</h2>
@@ -90,12 +90,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
                 <button 
                     type="submit"
-                    className="w-full bg-[#007AFF] hover:bg-[#0062c4] active:scale-95 text-white font-semibold py-3.5 rounded-xl transition-all shadow-lg shadow-blue-500/20"
+                    className="w-full bg-[#007AFF] hover:bg-[#0062c4] active:scale-95 text-white font-semibold py-3.5 rounded-xl transition-all shadow-lg shadow-blue-500/20 ease-spring"
                 >
                     {t.login}
                 </button>
             </form>
-            <button onClick={onBack} className="mt-6 text-sm text-[#007AFF] font-medium">
+            <button onClick={onBack} className="mt-6 text-sm text-[#007AFF] font-medium hover:underline">
                 {t.back}
             </button>
         </div>
@@ -104,10 +104,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   }
 
   return (
-    <div className="max-w-2xl mx-auto pt-4 pb-12 animate-in fade-in slide-in-from-bottom-8 duration-500">
+    <div className="max-w-2xl mx-auto pt-4 pb-12">
         
         {/* iOS Navigation Bar Style */}
-        <div className="flex items-center justify-between mb-6 px-2">
+        <div className="flex items-center justify-between mb-6 px-4 animate-enter-list delay-0">
             <button 
                 onClick={onBack} 
                 className="flex items-center gap-1 text-[#007AFF] active:opacity-50 transition-opacity font-medium text-lg"
@@ -124,12 +124,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         <div className="space-y-6">
             
             {/* 1. Profile Section */}
-            <div>
+            <div className="transition-all duration-300 animate-enter-card delay-100">
                 <h3 className="ml-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">{t.myProfile}</h3>
-                <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl overflow-hidden shadow-sm">
+                <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                     <div className="p-4 flex items-center justify-between">
                          <div className="flex items-center gap-3">
-                             <div className="bg-purple-500 rounded-full p-1.5 text-white">
+                             <div className="bg-purple-500 rounded-full p-1.5 text-white shadow-sm">
                                 <UserCircle size={20} />
                              </div>
                              <span className="font-medium">{t.userNameInSlip}</span>
@@ -147,12 +147,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             {/* 1.5 Visual Effects */}
-            <div>
+            <div className="transition-all duration-300 animate-enter-card delay-200">
                 <h3 className="ml-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">{t.visualEffects}</h3>
-                <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl overflow-hidden shadow-sm">
+                <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                     <div className="p-4 flex items-center justify-between">
                          <div className="flex items-center gap-3">
-                             <div className="bg-blue-500 rounded-full p-1.5 text-white">
+                             <div className="bg-blue-500 rounded-full p-1.5 text-white shadow-sm">
                                 <Zap size={20} />
                              </div>
                              <span className="font-medium">{t.glowEffect}</span>
@@ -171,7 +171,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             {/* 2. Categories */}
-            <div>
+            <div className="transition-all duration-300 animate-enter-card delay-300">
                 <h3 className="ml-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">{t.manageCategories}</h3>
                 <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl overflow-hidden shadow-sm">
                     <div className="p-4 border-b border-gray-100 dark:border-[#2C2C2E]">
@@ -183,20 +183,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                 placeholder={lang === 'th' ? 'เพิ่มหมวดหมู่...' : 'Add Category...'}
                                 className="flex-1 bg-gray-100 dark:bg-black/50 px-4 py-2 rounded-xl text-black dark:text-white outline-none focus:ring-2 focus:ring-[#007AFF]/50 transition-all"
                             />
-                            <button type="submit" className="bg-[#007AFF] text-white p-2 rounded-xl active:scale-90 transition-transform">
+                            <button type="submit" className="bg-[#007AFF] text-white p-2 rounded-xl active:scale-90 transition-transform shadow-lg shadow-blue-500/20">
                                 <Plus size={20} />
                             </button>
                         </form>
                     </div>
-                    <div className="max-h-60 overflow-y-auto">
+                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
                         {categories.map((cat, index) => (
-                            <div key={cat} className={`flex items-center justify-between p-4 bg-white dark:bg-[#1C1C1E] active:bg-gray-50 dark:active:bg-[#2C2C2E] transition-colors ${index !== categories.length - 1 ? 'border-b border-gray-100 dark:border-[#2C2C2E]' : ''}`}>
+                            <div 
+                                key={cat}
+                                className={`flex items-center justify-between p-4 bg-white dark:bg-[#1C1C1E] active:bg-gray-50 dark:active:bg-[#2C2C2E] transition-colors ${index !== categories.length - 1 ? 'border-b border-gray-100 dark:border-[#2C2C2E]' : ''}`}
+                            >
                                 <span className="font-medium text-black dark:text-white ml-2">
                                     {cat}
                                 </span>
                                 <button 
                                     onClick={() => handleDelete(cat)}
-                                    className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-full transition-colors"
+                                    className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-full transition-colors active:scale-90"
                                 >
                                     <Trash2 size={18} />
                                 </button>
@@ -207,12 +210,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             {/* 3. Budget */}
-            <div>
+            <div className="transition-all duration-300 animate-enter-card delay-300">
                 <h3 className="ml-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">{t.budgetConfig}</h3>
-                <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl overflow-hidden shadow-sm">
+                <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                     <div className="p-4 flex items-center justify-between border-b border-gray-100 dark:border-[#2C2C2E]">
                         <div className="flex items-center gap-3">
-                             <div className="bg-amber-500 rounded-full p-1.5 text-white">
+                             <div className="bg-amber-500 rounded-full p-1.5 text-white shadow-sm">
                                 <DollarSign size={20} />
                              </div>
                              <span className="font-medium">{t.enableBudget}</span>
@@ -229,30 +232,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
 
                     {budgetSettings.enabled && (
-                        <div className="p-4 space-y-4 animate-in slide-in-from-top-2">
-                             <div className="flex justify-between items-center">
-                                <label className="text-sm text-gray-500">{t.setBudget}</label>
-                                <input 
-                                    type="number" 
-                                    value={budgetSettings.limit}
-                                    onChange={(e) => handleBudgetChange('limit', parseFloat(e.target.value))}
-                                    className="text-right font-bold bg-transparent outline-none w-32"
-                                />
-                             </div>
-                             <div className="space-y-2">
+                        <div className="overflow-hidden animate-scale-in origin-top">
+                             <div className="p-4 space-y-4">
                                 <div className="flex justify-between items-center">
-                                    <label className="text-sm text-gray-500">{t.threshold}</label>
-                                    <span className="text-[#007AFF] font-bold">{budgetSettings.alertThreshold}%</span>
+                                    <label className="text-sm text-gray-500">{t.setBudget}</label>
+                                    <input 
+                                        type="number" 
+                                        value={budgetSettings.limit}
+                                        onChange={(e) => handleBudgetChange('limit', parseFloat(e.target.value))}
+                                        className="text-right font-bold bg-transparent outline-none w-32 border-b border-transparent focus:border-[#007AFF] transition-colors"
+                                    />
                                 </div>
-                                <input 
-                                    type="range" 
-                                    min="10" 
-                                    max="100" 
-                                    step="5"
-                                    value={budgetSettings.alertThreshold}
-                                    onChange={(e) => handleBudgetChange('alertThreshold', parseInt(e.target.value))}
-                                    className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-[#007AFF]"
-                                />
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-sm text-gray-500">{t.threshold}</label>
+                                        <span className="text-[#007AFF] font-bold">{budgetSettings.alertThreshold}%</span>
+                                    </div>
+                                    <input 
+                                        type="range" 
+                                        min="10" 
+                                        max="100" 
+                                        step="5"
+                                        value={budgetSettings.alertThreshold}
+                                        onChange={(e) => handleBudgetChange('alertThreshold', parseInt(e.target.value))}
+                                        className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-[#007AFF]"
+                                    />
+                                </div>
                              </div>
                         </div>
                     )}
@@ -260,10 +265,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             {/* 4. Reset */}
-            <div>
+            <div className="transition-all duration-300 animate-enter-card delay-300">
                  <button 
                     onClick={onClearData}
-                    className="w-full bg-white dark:bg-[#1C1C1E] text-[#FF3B30] font-medium py-4 rounded-2xl shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                    className="w-full bg-white dark:bg-[#1C1C1E] text-[#FF3B30] font-medium py-4 rounded-2xl shadow-sm transition-all flex items-center justify-center gap-2 active:scale-[0.98] hover:bg-red-50 dark:hover:bg-red-900/10"
                 >
                     <Trash2 size={18} />
                     {t.resetData}

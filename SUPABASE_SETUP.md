@@ -27,7 +27,39 @@ using (true)
 with check (true);
 ```
 
-### 2. Configure Storage Bucket for Slips
+### 2. Create App Settings Table (For Syncing Settings)
+
+This table stores categories, budget settings, and user profile so they sync across devices.
+
+```sql
+create table app_settings (
+  id int8 primary key, -- We will use ID=1 for the single global setting
+  categories jsonb,
+  budget_settings jsonb,
+  user_name text,
+  updated_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+-- Enable RLS
+alter table app_settings enable row level security;
+
+-- Allow public access (FOR DEMO/PERSONAL USE)
+create policy "Public Settings Access" 
+on app_settings for all 
+using (true) 
+with check (true);
+
+-- Insert the default row (ID = 1) immediately so the app has something to load
+insert into app_settings (id, categories, budget_settings, user_name)
+values (
+  1, 
+  '["Food", "Transport", "Shopping", "Utilities", "Salary", "Rent", "Entertainment", "Other"]'::jsonb,
+  '{"enabled": false, "limit": 10000, "alertThreshold": 80}'::jsonb,
+  'My Name'
+) ON CONFLICT (id) DO NOTHING;
+```
+
+### 3. Configure Storage Bucket for Slips
 
 ```sql
 -- Create a new storage bucket called 'slips'
@@ -45,19 +77,22 @@ on storage.objects for select
 using ( bucket_id = 'slips' );
 ```
 
-### 3. Environment Variables
+### 4. Environment Variables
 
 Create a `.env` file in your project root (if using Vite) and add your keys:
 
 ```env
 VITE_SUPABASE_URL=your_project_url
 VITE_SUPABASE_ANON_KEY=your_anon_key
+
+# For AI Scan Feature (Get key from https://aistudio.google.com/app/apikey)
+VITE_GEMINI_API_KEY=your_gemini_api_key
 ```
 
-### 4. Installation
+### 5. Installation
 
-Install the required dependency:
+Install the required dependencies:
 
 ```bash
-npm install @supabase/supabase-js lucide-react
+npm install @supabase/supabase-js lucide-react @google/genai@latest
 ```

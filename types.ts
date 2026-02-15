@@ -132,6 +132,8 @@ export const TRANSLATIONS = {
     syncing: 'Syncing settings...',
     visualEffects: 'Visual Effects',
     glowEffect: 'Glow Effect',
+    invalidAmount: 'Please enter a valid amount (> 0)',
+    categoryRequired: 'Category is required',
   },
   th: {
     appTitle: 'บันทึกรายรับ-รายจ่าย',
@@ -215,5 +217,7 @@ export const TRANSLATIONS = {
     syncing: 'กำลังซิงค์การตั้งค่า...',
     visualEffects: 'การแสดงผล',
     glowEffect: 'เอฟเฟกต์แสงฟุ้ง (Glow)',
+    invalidAmount: 'ระบุจำนวนเงินที่ถูกต้อง (> 0)',
+    categoryRequired: 'กรุณาเลือกหมวดหมู่',
   }
 };
