@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {
   "name": "expense-tracker-pro",
   "private": true,
@@ -24,3 +25,31 @@
     "vite": "^6.2.0"
   }
 }
+=======
+{
+  "name": "expense-tracker-pro",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/genai": "latest",
+    "@supabase/supabase-js": "^2.95.3",
+    "lucide-react": "^0.564.0",
+    "openai": "^6.25.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.2.14",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
+>>>>>>> 9397daf5b75fe4ccf81a23c3a16ae25ccfb2ccd3
