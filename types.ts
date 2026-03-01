@@ -26,6 +26,19 @@ export interface Transaction {
   description?: string;
 }
 
+export interface PendingTransaction {
+  id: string; // Temporary ID for UI tracking
+  amount: number;
+  type: TransactionType;
+  category: string;
+  description: string;
+  file: File;
+  previewUrl: string;
+  status: 'pending' | 'saving' | 'saved' | 'error';
+  error?: string;
+  originalFileName: string;
+}
+
 export interface Stats {
   balance: number;
   income: number;
