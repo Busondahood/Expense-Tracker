@@ -11,6 +11,7 @@ import { AnalyticsPanel } from './components/AnalyticsPanel';
 import { SlipModal } from './components/SlipModal';
 import { AdminPanel } from './components/AdminPanel';
 import { ReviewModal } from './components/ReviewModal';
+import { Home, Settings as SettingsIcon, ChevronUp } from 'lucide-react';
 
 const ConfigError = ({ t }: { t: typeof TRANSLATIONS['en'] }) => (
   <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#0D0D14] p-6 font-sans text-slate-900 dark:text-white">
@@ -151,9 +152,39 @@ function ExpenseTracker() {
         glowEnabled={tracker.glowEnabled}
       />
       
-      {/* Footer */}
-      <div className="text-center py-8 mt-8">
-        <p className="text-[11px] text-slate-300 dark:text-slate-700 font-medium tracking-wide">Credit by Bus ✨</p>
+      {/* Footer / Spacer for Bottom Nav on Mobile */}
+      <div className="text-center py-8 mt-8 pb-24 md:pb-8">
+        <p className="text-[11px] text-[#8E8E93] dark:text-[#EBEBF5]/60 font-medium tracking-wide">Credit by Bus ✨</p>
+      </div>
+
+      {/* iOS Style Mobile Bottom Navigation */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-xl border-t border-[#C6C6C8]/50 dark:border-[#38383A]/50 pb-safe">
+        <div className="flex justify-around items-center px-2 py-2 h-16">
+          <button 
+            onClick={() => { tracker.saveSettingsNow(); tracker.setCurrentView('dashboard'); window.scrollTo({top: 0, behavior: 'smooth'}); }}
+            className={`flex flex-col items-center justify-center w-20 space-y-1 transition-all active:scale-90 ${tracker.currentView === 'dashboard' ? 'text-ios-blue' : 'text-[#8E8E93] dark:text-[#EBEBF5]/60'}`}
+          >
+            <Home size={24} strokeWidth={tracker.currentView === 'dashboard' ? 2.5 : 2} />
+            <span className="text-[10px] font-medium leading-none">Home</span>
+          </button>
+          
+          <button 
+            onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}
+            className="flex flex-col items-center justify-center space-y-1 text-[#8E8E93] dark:text-[#EBEBF5]/60 w-20 transition-transform active:scale-90"
+          >
+            <div className="w-12 h-12 rounded-full bg-ios-blue text-white flex items-center justify-center shadow-lg transform -translate-y-4">
+              <ChevronUp size={24} strokeWidth={3} />
+            </div>
+          </button>
+
+          <button 
+            onClick={() => { tracker.saveSettingsNow(); tracker.setCurrentView('admin'); }}
+            className={`flex flex-col items-center justify-center w-20 space-y-1 transition-all active:scale-90 ${tracker.currentView === 'admin' ? 'text-ios-blue' : 'text-[#8E8E93] dark:text-[#EBEBF5]/60'}`}
+          >
+            <SettingsIcon size={24} strokeWidth={tracker.currentView === 'admin' ? 2.5 : 2} />
+            <span className="text-[10px] font-medium leading-none">Settings</span>
+          </button>
+        </div>
       </div>
     </div>
   );

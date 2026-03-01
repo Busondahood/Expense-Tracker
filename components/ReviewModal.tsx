@@ -32,13 +32,14 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-50/95 dark:bg-[#0D0D14]/95 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="flex items-center justify-between p-4 md:p-6 border-b border-slate-200 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md sticky top-0 z-10 shadow-sm">
+    <div className="fixed inset-0 z-50 flex flex-col justify-end md:justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 p-0 md:p-4">
+      <div className="relative flex flex-col w-full h-[90vh] md:h-auto max-h-[90vh] md:max-w-4xl mx-auto bg-[#F2F2F7] dark:bg-black md:rounded-3xl rounded-t-[32px] overflow-hidden animate-enter-card shadow-2xl">
+        <div className="flex items-center justify-between p-4 md:p-6 border-b border-[#C6C6C8]/50 dark:border-[#38383A]/50 bg-white/50 dark:bg-[#1C1C1E]/50 backdrop-blur-md sticky top-0 z-10">
         <div>
-          <h2 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">
+          <h2 className="text-[17px] md:text-2xl font-semibold text-black dark:text-white">
             Review Scanned Slips
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
+          <p className="text-[13px] text-[#8E8E93] dark:text-[#EBEBF5]/60 font-medium mt-1">
             {pendingScans.length} {t.items} pending confirmation
           </p>
         </div>
@@ -157,18 +158,18 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
         </div>
       </div>
 
-      <div className="p-4 md:p-6 bg-white dark:bg-[#0D0D14] border-t border-slate-200 dark:border-white/10 flex justify-end gap-4 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.2)]">
+      <div className="p-4 md:p-6 bg-white dark:bg-[#1C1C1E] border-t border-[#C6C6C8]/50 dark:border-[#38383A]/50 flex justify-end gap-3 pb-safe-offset-4">
         <button 
           onClick={onClose}
           disabled={isConfirming}
-          className="px-6 py-3 rounded-2xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+          className="px-6 py-[14px] rounded-[14px] font-semibold text-[#007AFF] bg-[#007AFF]/10 hover:bg-[#007AFF]/20 transition-colors disabled:opacity-50"
         >
           Cancel
         </button>
         <button 
           onClick={onConfirmAll}
           disabled={isConfirming || pendingScans.length === 0}
-          className={`flex items-center gap-2 px-8 py-3 rounded-2xl font-bold text-white transition-all bg-gradient-to-r from-emerald-500 to-green-500 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 shadow-lg shadow-emerald-500/20 ${glowEnabled ? 'animate-pulse-glow' : ''}`}
+          className={`flex items-center justify-center gap-2 px-8 py-[14px] rounded-[14px] font-semibold text-white transition-all bg-[#007AFF] hover:bg-[#007AFF]/90 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 ${glowEnabled ? 'animate-pulse-glow' : ''}`}
         >
           {isConfirming ? (
             <><Loader2 size={18} className="animate-spin" /> {t.saving}</>
@@ -177,6 +178,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
           )}
         </button>
       </div>
+    </div>
     </div>
   );
 };

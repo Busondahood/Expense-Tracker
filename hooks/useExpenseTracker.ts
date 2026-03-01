@@ -328,8 +328,8 @@ export function useExpenseTracker() {
                 {
                     "amount": number (remove commas),
                     "type": "income" or "expense" (if money is sent out, it is expense. if money is received, it is income. Use the user name "${userName}" to determine. If sender name exactly matches "${userName}", it's expense. If receiver name exactly matches "${userName}", it's income. Prioritize this rule.),
-                    "category": string (You MUST choose EXACTLY ONE from this list: [${categories.join(', ')}, "Other"]. Do not invent any new category names. IMPORTANT RULE: If type is "income" and amount is EXACTLY 250, then category MUST be exactly "Work"),
-                    "description": string (brief description or merchant name. IMPORTANT RULE: If type is "income" and amount is EXACTLY 250, then description MUST be "ลงโปรแกรม")
+                    "category": string (You MUST choose EXACTLY ONE from this list: [${categories.join(', ')}, "Other"]. Do not invent any new category names. IMPORTANT RULE: If type is "income" and amount is EXACTLY 250, then category MUST be exactly "Work". And if type is "income" and amount is EXACTLY 199, then category MUST be exactly "VIP SG"),
+                    "description": string (brief description or merchant name. IMPORTANT RULE: If type is "income" and amount is EXACTLY 250, then description MUST be "ลงโปรแกรม". And if type is "income" and amount is EXACTLY 199, then description MUST be "VIP SG")
                 }
             `;
 
@@ -377,6 +377,9 @@ export function useExpenseTracker() {
                   if (finalType === TransactionType.INCOME && Number(data.amount) === 250) {
                       finalCategory = 'Work';
                       finalDescription = 'ลงโปรแกรม';
+                  } else if (finalType === TransactionType.INCOME && Number(data.amount) === 199) {
+                      finalCategory = 'VIP SG';
+                      finalDescription = 'VIP SG';
                   }
 
                   newPendingScans.push({
